@@ -1,0 +1,16 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/stages/primordial/SoupGenerator.gd" id="1"]
+[ext_resource type="PackedScene" path="res://src/stages/primordial/Mote.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://src/stages/primordial/Germ.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://src/ui/EvolutionMeter.tscn" id="4"]
+
+[node name="PrimordialStage" type="Node2D"]
+script = ExtResource("1")
+mote_scene = ExtResource("2")
+sector_size = 600.0
+sector_axis_count = 8
+
+[node name="Player" parent="." instance=ExtResource("3")]
+
+[node name="EvolutionMeter" parent="." instance=ExtResource("4")]
