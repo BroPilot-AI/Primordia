@@ -96,7 +96,8 @@ func _process(delta: float) -> void:
 	_t += delta
 	_apply_organelle_stats()
 	if EvolutionState.genome != null:
-		_sprite.modulate = _sprite.modulate.lerp(EvolutionState.genome.color, delta * 3.0)
+		_sprite.modulate = _sprite.modulate.lerp(
+			Appearance.player_body_color(EvolutionState.genome.color), delta * 3.0)
 	_animate_features(delta)
 	queue_redraw()
 
@@ -256,9 +257,12 @@ func _draw() -> void:
 	var g := EvolutionState.genome
 	if g == null:
 		return
-	var col: Color = g.color
-	# Vivid diet-colored membrane — the clearest "you are what you eat" signal.
-	draw_circle(Vector2.ZERO, radius * 1.16, Color(col.r, col.g, col.b, 0.30))
+	var col: Color = Appearance.player_body_color(g.color)
+	# Vivid diet-colored membrane — the clearest "you are what you eat" signal. The solid
+	# fill, dark under-outline and bright halo keep the (small) player cell findable.
+	draw_circle(Vector2.ZERO, radius * 1.30, Color(col.r, col.g, col.b, 0.28))
+	draw_circle(Vector2.ZERO, radius * 1.04, Color(col.r, col.g, col.b, 0.45))
+	draw_arc(Vector2.ZERO, radius * 1.04, 0.0, TAU, 40, Color(0.10, 0.06, 0.12, 0.85), 7.0)
 	draw_arc(Vector2.ZERO, radius * 1.04, 0.0, TAU, 40, col, 4.0)
 
 

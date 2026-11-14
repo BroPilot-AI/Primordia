@@ -26,9 +26,6 @@ func _build_environment(preset: String) -> void:
 			env.sky = sky
 			env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 			env.ambient_light_energy = 0.6   # was 0.9 — flat-bright washed out forms; lower = contrast + warm-sun pop
-			env.fog_enabled = true
-			env.fog_density = 0.004
-			env.fog_sky_affect = 0.0
 			# The #1 "premium low-poly" fix: SSAO lays the dark contact crease where props/units meet the
 			# ground so nothing reads as a floating sticker. Plus a subtle glow for stylized pop.
 			env.ssao_enabled = true
@@ -124,13 +121,40 @@ static func matte_materials(root: Node) -> void:
 			if mat == null or mat.metallic <= 0.0 or mat.metallic_texture != null:
 				continue
 			if mat == mi.get_surface_override_material(s):
-				mat.metallic = 0.0   # already this instance's own copy (e.g. the vertex-color pass)
+				mat.metallic = 0.0   # already an override on this instance (e.g. a stylized hull)
 				continue
 			if not _matte_cache.has(mat):
 				var matte := mat.duplicate() as BaseMaterial3D
 				matte.metallic = 0.0
 				_matte_cache[mat] = matte
 			mi.set_surface_override_material(s, _matte_cache[mat])
+
+
+# One brightened copy per material and gain, shared by every instance (see _matte_cache).
+static var _gain_cache := {}
+
+
+# A generated model whose texture came out very dark reads as a silhouette. Multiply its albedo
+# by `gain` on this instance only (the imported resource is left untouched).
+static func gain_materials(root: Node, gain: float) -> void:
+	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D:
+		meshes.append(root)
+	for n in meshes:
+		var mi: MeshInstance3D = n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(s) as BaseMaterial3D
+			if mat == null:
+				continue
+			var key := [mat, gain]
+			if not _gain_cache.has(key):
+				var lifted := mat.duplicate() as BaseMaterial3D
+				var c := mat.albedo_color
+				lifted.albedo_color = Color(c.r * gain, c.g * gain, c.b * gain, c.a)
+				_gain_cache[key] = lifted
+			mi.set_surface_override_material(s, _gain_cache[key])
 
 
 # Normalize any ship model to a target overall size (hulls come from different sources/scales).
@@ -164,6 +188,10 @@ static func model_aabb(root: Node3D) -> AABB:
 	return box
 
 
+# One vertex-color copy per material, shared by every instance (see _matte_cache).
+static var _vertex_color_cache := {}
+
+
 # Kenney low-poly kits bake their palette into VERTEX COLORS; Godot renders those white unless the
 # material flags them as albedo. Enable it on every surface so kit models show their real colors.
 func _enable_vertex_colors(root: Node) -> void:
@@ -177,15 +205,18 @@ func _enable_vertex_colors(root: Node) -> void:
 		for s in mi.mesh.get_surface_count():
 			var mat: Material = mi.get_active_material(s)
 			if mat is StandardMaterial3D:
-				var m: StandardMaterial3D = (mat as StandardMaterial3D).duplicate()
-				m.vertex_color_use_as_albedo = true
-				mi.set_surface_override_material(s, m)
+				if not _vertex_color_cache.has(mat):
+					var m: StandardMaterial3D = (mat as StandardMaterial3D).duplicate()
+					m.vertex_color_use_as_albedo = true
+					_vertex_color_cache[mat] = m
+				mi.set_surface_override_material(s, _vertex_color_cache[mat])
 
 
 # Preserve an imported mesh's textures and UV-driven detail while shifting its palette.
 # A duplicated mesh/material pair keeps the source GLB immutable and avoids the flat-color
 # material_override that previously erased the Kenney colormap entirely.
-func _mesh_with_albedo_tint(source: Mesh, tint: Color) -> Mesh:
+# `per_instance_color` lets a MultiMesh shade each instance on top (see GroundTone).
+func _mesh_with_albedo_tint(source: Mesh, tint: Color, per_instance_color := false) -> Mesh:
 	if source == null:
 		return null
 	var copy := source.duplicate() as Mesh
@@ -194,9 +225,97 @@ func _mesh_with_albedo_tint(source: Mesh, tint: Color) -> Mesh:
 		if original is StandardMaterial3D:
 			var material := original.duplicate() as StandardMaterial3D
 			material.albedo_color *= tint
+			if per_instance_color:
+				material.vertex_color_use_as_albedo = true
 			if material.metallic_texture == null:
 				material.metallic = 0.0   # see matte_materials
 			copy.surface_set_material(surface, material)
+	return copy
+
+
+# One recoloured swatch texture per source texture and tint pair, shared by every tile batch
+# (see _matte_cache).
+static var _two_tone_cache := {}
+
+
+# Per-channel byte -> byte table of what `albedo_color *= tint` renders as. Godot multiplies the
+# albedo texture and colour in linear space; an 8-bit texture clamps what exceeds 1.0.
+static func _tint_table(tint: float) -> PackedByteArray:
+	var table := PackedByteArray()
+	table.resize(256)
+	var tint_lin := Color(tint, tint, tint).srgb_to_linear().r
+	for i in 256:
+		var lin := minf(Color(i / 255.0, 0.0, 0.0).srgb_to_linear().r * tint_lin, 1.0)
+		table[i] = roundi(Color(lin, 0.0, 0.0).linear_to_srgb().r * 255.0)
+	return table
+
+
+# A recoloured copy of a swatch image: rock swatches carry `stone`, every other pixel `ground`.
+# Pure: the source is untouched; null when there is no pixel data to work with.
+static func recolor_two_tone(source: Image, ground: Color, stone: Color) -> Image:
+	if source == null or source.is_empty():
+		return null
+	var img := source.duplicate() as Image
+	if img.is_compressed():
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	var data := img.get_data()
+	var g_r := _tint_table(ground.r)
+	var g_g := _tint_table(ground.g)
+	var g_b := _tint_table(ground.b)
+	var s_r := _tint_table(stone.r)
+	var s_g := _tint_table(stone.g)
+	var s_b := _tint_table(stone.b)
+	for i in range(0, data.size(), 4):
+		var r := data[i]
+		var g := data[i + 1]
+		var b := data[i + 2]
+		# Kenney's colormap paints rock lavender-grey (blue the strongest channel, low saturation);
+		# grass (teal) and dirt (brown) always have another channel on top.
+		if b >= r and b >= g and (b - mini(r, g)) * 10 <= b * 3:
+			data[i] = s_r[r]
+			data[i + 1] = s_g[g]
+			data[i + 2] = s_b[b]
+		else:
+			data[i] = g_r[r]
+			data[i + 1] = g_g[g]
+			data[i + 2] = g_b[b]
+	return Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
+
+
+# The shared recoloured texture for `source`; null when its pixels are unavailable (headless
+# dummy renderer), so callers fall back to a single tint.
+static func two_tone_texture(source: Texture2D, ground: Color, stone: Color) -> Texture2D:
+	if source == null:
+		return null
+	var key := [source, ground, stone]
+	if not _two_tone_cache.has(key):
+		var img := recolor_two_tone(source.get_image(), ground, stone)
+		_two_tone_cache[key] = ImageTexture.create_from_image(img) if img != null else null
+	return _two_tone_cache[key]
+
+
+# Like _mesh_with_albedo_tint, but the grass and the rock of one tile take different tints (the
+# hill tile's grass would otherwise turn leaf green and its rock salmon under a single tint).
+# The tints live in the recoloured colormap, so the material's own albedo_color stays untouched.
+func _mesh_with_two_tone_albedo(source: Mesh, ground: Color, stone: Color, per_instance_color := false) -> Mesh:
+	if source == null:
+		return null
+	var copy := source.duplicate() as Mesh
+	for surface in copy.get_surface_count():
+		var original := source.surface_get_material(surface)
+		if not original is StandardMaterial3D:
+			continue
+		var texture := two_tone_texture((original as StandardMaterial3D).albedo_texture, ground, stone)
+		if texture == null:
+			return _mesh_with_albedo_tint(source, ground, per_instance_color)
+		var material := original.duplicate() as StandardMaterial3D
+		material.albedo_texture = texture
+		if per_instance_color:
+			material.vertex_color_use_as_albedo = true
+		if material.metallic_texture == null:
+			material.metallic = 0.0   # see matte_materials
+		copy.surface_set_material(surface, material)
 	return copy
 
 

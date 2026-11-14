@@ -10,6 +10,7 @@ const BuildReadoutScript := preload("res://src/stages/primordial/BuildReadout.gd
 const CompoundFieldModel := preload("res://src/stages/primordial/CompoundField.gd")
 
 const COMPOUND_CELL_SIZE := 150.0
+const CLOUD_REACH := 1.15   # a cell's puff spreads this many cell sizes out, well into its neighbours
 const COMPOUND_DIFFUSE_RATE := 0.62
 const COMPOUND_DECAY_RATE := 0.075
 const COMPOUND_PRUNE_THRESHOLD := 0.08
@@ -51,6 +52,7 @@ const TIER_TOASTS := {
 var _branch_key := "freshwater"
 var _foods: Array = []
 var _compound_cells := {}
+var _cloud_texture := cloud_texture()
 var _compound_vents: Array = []
 var _sector_vents := {}
 var _survival_mp_timer := 0.0
@@ -229,15 +231,32 @@ func _free_sector(key: Vector2) -> void:
 	super._free_sector(key)
 
 
+## A soft round puff, full in the middle and nothing at the rim, so the puffs of neighbouring
+## cells melt into one cloud.
+static func cloud_texture() -> GradientTexture2D:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	gradient.colors = PackedColorArray([Color.WHITE, Color(1.0, 1.0, 1.0, 0.34), Color(1.0, 1.0, 1.0, 0.0)])
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	texture.width = 128
+	texture.height = 128
+	return texture
+
+
 func _draw() -> void:
+	var reach := Vector2.ONE * COMPOUND_CELL_SIZE * CLOUD_REACH
 	for key in _compound_cells.keys():
 		var compounds: Dictionary = _compound_cells[key]
 		var total := _compound_total(compounds)
 		if total < 3.0:
 			continue
 		var col := _compound_color(compounds)
-		col.a = clampf(total / 2100.0, 0.025, 0.16)
-		draw_circle(_cell_center(key), COMPOUND_CELL_SIZE * 0.72, col)
+		col.a = clampf(total / 3000.0, 0.02, 0.12)
+		draw_texture_rect(_cloud_texture, Rect2(_cell_center(key) - reach, reach * 2.0), false, col)
 
 	for vent in _compound_vents:
 		var pos: Vector2 = vent.get("position", Vector2.ZERO)

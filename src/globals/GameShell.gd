@@ -54,6 +54,8 @@ const IDLE_TIPS := {
 }
 
 const IDLE_TIP_AFTER := 42.0
+const OBJECTIVE_BOTTOM_GAP := 18.0
+const OBJECTIVE_ROW_HEIGHT := 44.0
 
 var _idle_t := 0.0
 var _idle_stage := -1
@@ -62,6 +64,7 @@ var _paused := false
 var _pause_root: Control
 var _settings_panel: Control
 var _objective: Label
+var _objective_pill: PanelContainer
 var _speed_buttons: Dictionary = {}
 var _vol := {"Master": 0.9, "Music": 0.8, "SFX": 0.9}
 var _fullscreen := false
@@ -117,7 +120,7 @@ func _on_stage_changed(stage: int) -> void:
 	_idle_stage = stage
 	if _objective != null:
 		_objective.text = String(OBJECTIVES.get(stage, ""))
-		_objective.visible = OBJECTIVES.has(stage)
+		_objective_pill.visible = OBJECTIVES.has(stage)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -184,14 +187,24 @@ func _load_run_from_pause_menu() -> void:
 
 # --- objective / controls hint (bottom-center, subtle) ---
 func _build_objective() -> void:
-	_objective = StageChrome.hint_label("")
-	_objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_objective.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_objective.offset_bottom = -28
-	_objective.offset_top = -52
+	# Readable text on a dark pill, centred at the bottom; none of it may take a click.
+	var row := CenterContainer.new()
+	row.name = "ObjectiveRow"
+	row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	row.offset_bottom = -OBJECTIVE_BOTTOM_GAP
+	row.offset_top = -OBJECTIVE_BOTTOM_GAP - OBJECTIVE_ROW_HEIGHT
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(row)
+	_objective_pill = PanelContainer.new()
+	_objective_pill.name = "ObjectivePill"
+	_objective_pill.add_theme_stylebox_override("panel", StageChrome.toast_panel_style())
+	_objective_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_objective_pill.visible = false
+	row.add_child(_objective_pill)
+	_objective = StageChrome.status_label("")
+	_objective.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_objective.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_objective.visible = false
-	add_child(_objective)
+	_objective_pill.add_child(_objective)
 
 
 # --- pause menu + settings ---

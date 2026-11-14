@@ -34,8 +34,8 @@ const STAGE_CARDS := {
 	},
 	3: {
 		"era": "CIV",
-		"story": "Your people have raised the first settlement (~15–40 min). Grow through the ages and contend with rival nations. Two paths off-world: found cities and build a Spaceport, or raze every rival capital. Your evolved traits and genome axes already shape soldiers and production.",
-		"controls": "SELECT — drag a box.  COMMAND — right-click attack-move.  B — drop into a full tactical ground battle near hostiles.  T/F — zoom.  Minimap jump.  BUILD / MANAGE / SETTLER.  GOAL — 3 cities + Spaceport OR eliminate all rivals.",
+		"story": "Your people have raised the first settlement (~25–45 min). Grow through the ages and contend with rival nations. Two paths off-world: found three cities, build a Spaceport and eliminate one rival nation before you launch, or raze every rival capital. Each age needs its tech first. Your evolved traits and genome axes already shape soldiers and production.",
+		"controls": "SELECT — drag a box.  COMMAND — right-click attack-move.  B — drop into a full tactical ground battle near hostiles.  T/F — zoom.  Minimap jump.  BUILD / MANAGE / SETTLER.  GOAL — 3 cities + Spaceport + one rival eliminated, then Launch, OR eliminate all rivals.",
 	},
 	4: {
 		"era": "SPACE",

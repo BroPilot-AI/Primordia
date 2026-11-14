@@ -49,6 +49,15 @@ const _TARGET_HEIGHTS: Dictionary[String, float] = {
 	"standing_stones": 2.3,
 	"palisade_segment": 2.7,
 }
+# Albedo gain per generated model whose texture came out dark against the bright ground. Models
+# that already read well (baskets, huts, lean-to) are left out.
+const BRIGHTEN_GAIN: Dictionary[String, float] = {
+	"totem_pole": 1.5,
+	"standing_stones": 1.25,
+	"palisade_segment": 1.7,
+	"knapping_station": 2.2,
+	"wood_pile": 1.4,
+}
 
 
 static func has_structure(type: String) -> bool:
@@ -79,6 +88,8 @@ static func spawn_structure(parent: Node3D, type: String, pos: Vector3, yaw: flo
 	if inst == null:
 		return null
 	parent.add_child(inst)
+	Stage3D.matte_materials(inst)
+	_brighten(inst, str(STRUCTURES[type]))
 	inst.position = pos
 	_fit_and_seat(inst, _target_height(type))
 	inst.rotation.y = yaw
@@ -104,10 +115,17 @@ static func scatter_props(parent: Node3D, count: int, area_radius: float, rng: R
 		var r: float = sqrt(rng.randf() * (area_radius * area_radius - min_radius * min_radius) + min_radius * min_radius)
 		inst.position = Vector3(cos(angle) * r, 0.0, sin(angle) * r)
 		parent.add_child(inst)
+		Stage3D.matte_materials(inst)
+		_brighten(inst, stem)
 		_fit_and_seat(inst, _target_height(stem) * rng.randf_range(0.88, 1.14))
 		inst.rotation.y = rng.randf() * TAU
 		spawned.append(inst)
 	return spawned
+
+
+static func _brighten(inst: Node3D, stem: String) -> void:
+	if BRIGHTEN_GAIN.has(stem):
+		Stage3D.gain_materials(inst, BRIGHTEN_GAIN[stem])
 
 
 static func _target_height(type: String) -> float:

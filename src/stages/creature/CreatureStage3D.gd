@@ -148,6 +148,7 @@ var _world_env: WorldEnvironment = null
 var _sun: DirectionalLight3D = null
 var _mesh_parts_cache: Dictionary = {}   # hex GLB -> [{mesh, xform}] (ported from CivStage3D)
 var _forest_spots: Array[Vector3] = []    # world positions of forest/hill tiles — flora clusters here
+var _ground_tone := GroundTone.new(hash(EvolutionState.world_seed + "_ground_tone"))
 var _fireflies: CPUParticles3D = null     # night ambient life (toggled by is_night)
 var _night_vignette: ColorRect = null     # screen-edge darken at night (fire matters)
 
@@ -310,13 +311,15 @@ func _build_hex_multimesh(path: String, records: Array) -> void:
 		var part: Dictionary = parts[part_idx]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = _mesh_with_albedo_tint(part.mesh, color)
+		mm.use_colors = true
+		mm.mesh = _mesh_with_albedo_tint(part.mesh, color, true)
 		mm.instance_count = records.size()
 		for i in records.size():
 			var rec: Dictionary = records[i]
 			var pos: Vector3 = rec.pos + Vector3(0, rec.raise, 0)
 			var root_basis := Basis(Vector3.UP, deg_to_rad(rec.rot)).scaled(Vector3(fit, fit * height_mult, fit))
 			mm.set_instance_transform(i, Transform3D(root_basis, pos) * part.xform)
+			mm.set_instance_color(i, _ground_tone.at(rec.pos))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.custom_aabb = board
@@ -370,17 +373,18 @@ func _hex_tile_tint(path: String) -> Color:
 		HEX_WATER, HEX_WATER_ROCKS:
 			return Color(0.11, 0.42, 0.62)
 		HEX_DIRT:
-			return Color(0.40, 0.29, 0.18)
+			return Color(0.53, 0.62, 0.55)
 		HEX_SAND:
 			return Color(0.60, 0.53, 0.35)
 		HEX_MOUNTAIN, HEX_STONE_HILL:
 			return Color(0.40, 0.43, 0.45)
+		# The kit paints grass teal (#4ac6a7); red above 1 pulls it round to leaf green.
 		HEX_FOREST:
-			return Color(0.16, 0.42, 0.22)
+			return Color(0.80, 0.48, 0.26)
 		HEX_HILL:
-			return Color(0.33, 0.56, 0.26)
+			return Color(0.90, 0.60, 0.30)
 		_:
-			return Color(0.30, 0.58, 0.31)
+			return Color(1.08, 0.58, 0.30)
 
 
 func _spawn_player() -> void:
@@ -664,7 +668,7 @@ func _tick_night_vignette(delta: float) -> void:
 func _update_sun(delta: float) -> void:
 	if _sun == null:
 		return
-	var target: float = 25.0 if is_night else 52.0
+	var target: float = -25.0 if is_night else -52.0   # negative pitch = shining down (see Stage3D._build_sun)
 	_sun.rotation_degrees.x = move_toward(_sun.rotation_degrees.x, target, 4.0 * delta)
 	# Mood: warm low sun by day, dim cool moonlight by night — makes the fire glow matter at night.
 	var day_col := Color(1.0, 0.94, 0.82)

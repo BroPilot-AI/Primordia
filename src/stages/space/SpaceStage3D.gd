@@ -244,10 +244,10 @@ func _ready() -> void:
 	call_deferred("_emit_space_open_brief")
 
 
-# Deep-space skybox from an equirectangular nebula panorama.
+# Deep-space sky: nebula + parallax stars on a backdrop plane behind the galaxy disk.
 func _build_skybox() -> void:
-	# Ortho cameras smear panorama skies into a radial burst. Keep a flat color sky and put
-	# the starfield on a backdrop plane behind the galaxy disk so stars actually read.
+	# Ortho cameras smear panorama skies into a radial burst, so the sky is a flat color and the
+	# stars live on the backdrop plane (SpaceBackdrop).
 	var we: WorldEnvironment = null
 	for c in get_children():
 		if c is WorldEnvironment:
@@ -259,26 +259,7 @@ func _build_skybox() -> void:
 		we.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		we.environment.ambient_light_color = Color(0.38, 0.44, 0.62)
 		we.environment.ambient_light_energy = 0.55
-	var path := "res://assets/textures/space_skybox.png"
-	if not ResourceLoader.exists(path):
-		path = "res://assets/textures/space_nebula_panorama.png"
-	if not ResourceLoader.exists(path):
-		return
-	var mi := MeshInstance3D.new()
-	mi.name = "StarfieldBackdrop"
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(2400, 2400)
-	mi.mesh = plane
-	mi.position = Vector3(0.0, -160.0, 0.0)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_texture = load(path)
-	# Tile the 2:1 panorama (square texels) so stars stay pin-points instead of blurry blobs.
-	mat.uv1_scale = Vector3(12.0, 24.0, 1.0)
-	mat.albedo_color = Color(0.38, 0.42, 0.55)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = mat
-	add_child(mi)
+	add_child(SpaceBackdrop.for_current_galaxy())
 
 
 # Deterministic finite galaxy in the XZ plane: scatter systems with a min separation, then hand

@@ -23,6 +23,7 @@ const BAND_MIN := [12.0, 50.0]     # min ortho size per level
 const BAND_MAX := [48.0, 150.0]    # max ortho size per level (strategic wide enough for big maps)
 const BAND_TILT := [45.0, 66.0]    # tactical = shallow, strategic = top-down
 const DEFAULT_YAW := 0.0           # camera south of focus, looking north (-Z) so north is up-screen
+const SHADOW_FAR := 400.0          # far plane: past the Space backdrop (160 below the board), no further
 
 var _focus: Vector3 = Vector3.ZERO
 var _yaw: float = DEFAULT_YAW
@@ -34,6 +35,9 @@ var _rotating: bool = false
 
 func _ready() -> void:
 	projection = PROJECTION_ORTHOGONAL
+	# Orthographic cameras ignore the sun's directional_shadow_max_distance: the shadow cascades span
+	# near..far instead, so the engine's far of 4000 smears every shadow into nothing.
+	far = SHADOW_FAR
 	_yaw = DEFAULT_YAW
 	_level = STRATEGIC if size >= BAND_MIN[STRATEGIC] else TACTICAL
 	size = clampf(size, BAND_MIN[_level], BAND_MAX[_level])

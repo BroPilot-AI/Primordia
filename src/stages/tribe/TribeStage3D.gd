@@ -122,6 +122,7 @@ var _camp_fire_glow: OmniLight3D = null
 var _biome: Dictionary = BIOME_FALLBACK
 var _terrain_cover_spots: Array[Vector3] = []
 var _terrain_mesh_cache: Dictionary = {}
+var _ground_tone := GroundTone.new(hash(EvolutionState.world_seed + "_ground_tone"))
 var _cam_free_t: float = 0.0
 
 var _status: Label = null
@@ -292,12 +293,18 @@ func _build_tribe_tile_batch(path: String, records: Array) -> void:
 		var part: Dictionary = parts[part_idx]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = _mesh_with_albedo_tint(part.mesh, color)
+		mm.use_colors = true
+		if path == HEX_HILL:
+			# Grass base like the plain grass tiles around it, bare rock like the stone tiles.
+			mm.mesh = _mesh_with_two_tone_albedo(part.mesh, _tribe_tile_tint(HEX_GRASS), _tribe_tile_tint(HEX_STONE), true)
+		else:
+			mm.mesh = _mesh_with_albedo_tint(part.mesh, color, true)
 		mm.instance_count = records.size()
 		for i in records.size():
 			var rec: Dictionary = records[i]
 			var basis := Basis(Vector3.UP, deg_to_rad(rec.rot)).scaled(Vector3(fit, fit * height_mult, fit))
 			mm.set_instance_transform(i, Transform3D(basis, rec.pos) * part.xform)
+			mm.set_instance_color(i, _ground_tone.at(rec.pos))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.name = "TribeTerrain_%s_%d" % [path.get_file().get_basename(), part_idx]
 		mmi.multimesh = mm
@@ -312,21 +319,20 @@ func _tribe_tile_tint(path: String) -> Color:
 		HEX_WATER, HEX_WATER_ROCKS:
 			return Color(0.70, 0.84, 0.92)
 		HEX_DIRT:
-			return Color(0.72, 0.78, 0.52)
+			return Color(0.60, 0.68, 0.60)
 		HEX_SAND, HEX_SAND_ROCKS:
 			return Color(0.82, 0.72, 0.48)
 		HEX_STONE, HEX_STONE_HILL, HEX_MOUNTAIN:
 			return Color(0.58, 0.62, 0.68)
-		HEX_FOREST:
-			return Color(0.34, 0.62, 0.28)
-		HEX_HILL:
-			return Color(0.48, 0.72, 0.34)
+		# The kit paints grass teal (#4ac6a7); red above 1 pulls it round to leaf green. Hills tint
+		# their grass and rock separately (_build_tribe_tile_batch). Forest floor is grass: the
+		# trees mark the wood, not a dark hexagon under them.
 		_:
 			if _species == "tall_grey":
 				return Color(0.56, 0.66, 0.58)
 			if _species == "short_alien":
 				return Color(0.36, 0.68, 0.54)
-			return Color(0.45, 0.72, 0.34)
+			return Color(1.26, 0.68, 0.36)
 
 
 func _tribe_mesh_parts(path: String) -> Array:
@@ -552,8 +558,12 @@ func _sync_band() -> void:
 	while _villagers.size() < want:
 		# The whole band is YOUR evolved species (the leader's lineage), not generic humans.
 		var role: String = _band_role()
-		var member_h: float = 1.3 if role == "child" else 2.2
+		# The leader also gets GenomeFeatures3D bulk (~1.08x), so 2.5 still reads a bit smaller than the chief.
+		var member_h: float = 1.6 if role == "child" else 2.5
 		var v: Node3D = SpeciesVisuals.attach(self, _species, member_h)
+		if v != null:
+			# Same genome expression as the leader: without it the raw model reads dark and drab.
+			SpeciesVisuals.express(v, EvolutionState.genome)
 		if v == null:
 			v = Villagers.attach(self, role, BAND_SCALE)   # fallback to a generic humanoid
 		if v == null:

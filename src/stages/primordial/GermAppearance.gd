@@ -57,3 +57,11 @@ static func layout_signature(layout: Array) -> String:
 ## and call-sites that just want a boolean ("does this cell sprout a tail?").
 static func has_feature(layout: Array, feature: String) -> bool:
 	return int(feature_counts(layout).get(feature, 0)) > 0
+
+
+## The player's body/membrane colour: the genome colour pushed to a vivid, bright version so
+## "you" pops against pastel motes and other cells. A near-grey genome (the start) has no
+## usable hue, so it gets a hot coral instead; a tinted genome keeps its own hue.
+static func player_body_color(genome_color: Color) -> Color:
+	var hue := genome_color.h if genome_color.s > 0.15 else 0.97
+	return Color.from_hsv(hue, maxf(genome_color.s, 0.80), 1.0)

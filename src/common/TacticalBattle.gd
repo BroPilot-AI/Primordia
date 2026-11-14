@@ -130,6 +130,7 @@ func _build_world() -> void:
 		dmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		disc.material_override = dmat
 		_world.add_child(disc)
+		_world.add_child(SpaceBackdrop.for_current_galaxy())
 
 	_fx_root = Node3D.new()
 	_fx_root.name = "BattleFX"

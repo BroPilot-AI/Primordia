@@ -350,6 +350,16 @@ const STRUCT_SCALE := {
 	"MiningRig": 3.3,
 	"JumpGate": 4.8,
 }
+# Albedo gain for the models whose texture came out too dark to read against space.
+const STRUCT_GAIN := {
+	"MiningRig": 3.4,
+}
+# The Annihilator's threat colour: a red-biased lift of its dark hull plus a faint red glow. The
+# glow stays low so the hull keeps its shading (a strong flat glow turned it into a red blob).
+const MENACE_TINT := Color(5.0, 1.1, 1.1)
+const MENACE_GLOW := 0.06
+# One red copy per source material, shared by every Annihilator marker (see Stage3D._matte_cache).
+static var _menace_cache := {}
 
 
 # Normalize a station model to a target height (sources vary wildly in native scale/origin).
@@ -434,6 +444,8 @@ func _refresh_struct_marker() -> void:
 	var node: Node3D = packed.instantiate()
 	add_child(node)
 	Stage3D.matte_materials(node)
+	if STRUCT_GAIN.has(structure):
+		Stage3D.gain_materials(node, float(STRUCT_GAIN[structure]))
 	node.position = Vector3(0, 4.5, 0)
 	_fit_struct(node, float(STRUCT_SCALE.get(structure, 3.0)))
 	if structure == "Annihilator":
@@ -443,12 +455,14 @@ func _refresh_struct_marker() -> void:
 				continue
 			for si in mi.mesh.get_surface_count():
 				var src: Material = mi.get_active_material(si)
-				var m: StandardMaterial3D = (src as StandardMaterial3D).duplicate() if src is StandardMaterial3D else StandardMaterial3D.new()
-				m.albedo_color = m.albedo_color.lerp(Color(0.9, 0.15, 0.15), 0.55)
-				m.emission_enabled = true
-				m.emission = Color(0.9, 0.1, 0.1)
-				m.emission_energy_multiplier = 0.8
-				mi.set_surface_override_material(si, m)
+				if not _menace_cache.has(src):
+					var m: StandardMaterial3D = (src as StandardMaterial3D).duplicate() if src is StandardMaterial3D else StandardMaterial3D.new()
+					m.albedo_color = m.albedo_color * MENACE_TINT
+					m.emission_enabled = true
+					m.emission = Color(0.9, 0.1, 0.1)
+					m.emission_energy_multiplier = MENACE_GLOW
+					_menace_cache[src] = m
+				mi.set_surface_override_material(si, _menace_cache[src])
 	_struct_marker = node
 
 

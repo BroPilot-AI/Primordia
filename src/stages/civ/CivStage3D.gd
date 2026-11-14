@@ -35,6 +35,8 @@ const HEX_FLAT := HEX_POINT / 1.1547       # rendered flat-to-flat span (world +
 const HEX_COL_STEP := HEX_FLAT             # pointy-top column pitch = flat-to-flat width
 const HEX_ROW_STEP := HEX_POINT * 0.75     # pointy-top row pitch = 3/4 of point-to-point
 const WIN_CITY_COUNT := 3
+## Rival nations that must be eliminated (every city razed) before Launch to Space unlocks.
+const WIN_RIVALS_BEATEN := 1
 ## Hit points of a city center (player or rival). Cities are real, destructible targets:
 ## sustained siege razes them — a razed player city stops producing (and can cost the run);
 ## razing every rival city is the conquest victory.
@@ -53,6 +55,13 @@ const BUILDING_MAX_FOOTPRINT_TILES := 1.3
 # Tunable once the camera/orientation convention is locked from the art-direction research.
 const BUILDING_FACE_YAW := 180.0
 const BUILDING_FACE_JITTER := 8.0
+# A town spreads over the hexes round its capital: the hexes touching the capital stay open,
+# props keep to one ring further out and buildings take the rest.
+const TOWN_PLAZA := 1.1          # hex steps round the capital kept clear for its road and new units
+const TOWN_REACH := 3.1          # how far a town may spread, in hex steps from the capital
+const TOWN_DECOR_RING := 2.0     # the ring of hexes left to props, in hex steps from the capital
+const SPAWN_REACH := 6           # how far out, in hexes, a new unit looks for open ground
+const TOWN_DECOR_JITTER := 1.0   # how far a prop may sit from the middle of its hex
 
 enum Terrain { WATER, LAND, MOUNTAIN }
 
@@ -60,6 +69,9 @@ enum Terrain { WATER, LAND, MOUNTAIN }
 # Water: one continuous sheet under the whole map, sitting just below the grass plane so land
 # reads as raised above it. Tweak color via the shader uniforms below.
 const WATER_LEVEL := -0.35              # Y of the single water plane (below the grass at -0.02)
+const HEX_UNDERLAY_LEVEL := -0.08       # Y of the plane that closes the seams under the hex board
+const HEX_WATER_LEVEL := 0.06           # Y of the water over the hex board: above the underlay, below the land tops
+const HEX_WATER_ROCKS_RAISE := -0.10    # sinks a rocky water tile just far enough to leave its rocks above the water
 const WATER_SHALLOW := Color(0.20, 0.52, 0.62)
 const WATER_DEEP := Color(0.04, 0.16, 0.30)
 # Forests: instead of uniform per-cell scatter, grow a handful of contiguous belts/clumps that act
@@ -70,6 +82,7 @@ const FOREST_BELT_STEPS := 15           # cells per belt (belt length)
 const FOREST_BELT_WIDTH := 0            # half-width: 0 = single-cell line, 1 = 3-cell-wide belt
 const FOREST_TREES_PER_CELL := 2        # trees packed into each forested cell (dense canopy)
 const FOREST_CLEAR_RADIUS := 5          # cells around each city/settler kept tree-free (clearings)
+const START_CLEAR_RADIUS := 2           # cells around each start kept free of lone trees and rocks
 const FOREST_GAP_EVERY := 7             # leave a 1-cell gap every Nth belt step so belts stay porous
 const FOREST_CROSS_LANE_BIAS := 0.72    # chance random belts run E/W across the N-S base approaches
 const MIDFIELD_CLEAR_RADIUS := 5         # keep the center open for the decisive fight/resource contest
@@ -94,21 +107,22 @@ const SCATTER_GROUNDCOVER_MAX := 2
 const DIRS4: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 const TECHS := [
-	{"name": "Agriculture", "cost": 3, "effect": "production", "value": 1},
-	{"name": "Metalworking", "cost": 5, "effect": "defense", "value": 1},
-	{"name": "Architecture", "cost": 8, "effect": "population", "value": 2},
-	{"name": "Engineering", "cost": 12, "effect": "production", "value": 2},
+	{"name": "Agriculture", "cost": 30, "effect": "production", "value": 1},
+	{"name": "Metalworking", "cost": 70, "effect": "defense", "value": 1},
+	{"name": "Architecture", "cost": 140, "effect": "population", "value": 2},
+	{"name": "Engineering", "cost": 260, "effect": "production", "value": 2},
+	{"name": "Computing", "cost": 420, "effect": "production", "value": 2},
 ]
 
 const AGES := ["Stone", "Bronze", "Iron", "Industrial", "Modern", "Near-Future"]
-# Early ages slightly cheaper so the first age-up lands before boredom; late ages keep the grind.
-# Sized against compounding city production (+1/city per age, production techs): at the old
-# 6..80 costs the whole ladder took ~11 s of game time and spaceflight fell in under a minute.
-const AGE_COST := [0, 80, 180, 360, 640, 1000]
+# Civ is meant to be the longest stage. Each age also needs its tech (TECHS[age] before age + 1).
+# Sized against compounding city production (+1/city per age, production techs) and
+# ECONOMY_PACE: the bot's spaceflight win lands around 25-35 game-minutes.
+const AGE_COST := [0, 180, 400, 750, 1300, 2000]
 const WORKER_YIELD := 0.42
 ## Pace of all player income (cities, workers, granary). At 1.0 a fresh capital paid for a
-## worker every ~1 s and three cities were up in ~20 s.
-const ECONOMY_PACE := 0.25
+## worker every ~1 s and three cities were up in ~20 s. 0.16 stretches the stage to ~30 min.
+const ECONOMY_PACE := 0.16
 const WORKER_COST := 4
 const WORKER_SPEED := 4.0
 const WORKER_GATHER_TIME := 2.5   # seconds spent playing the gather clip at a node before hauling back
@@ -260,11 +274,13 @@ const RIVAL_THINK_INTERVAL := 5.0
 ## How far an idle/moving player unit picks fights on its own. Rivals and bandits hunt map-wide
 ## (200), but at 200 the player's army razed rival cities unordered — conquest won itself.
 const PLAYER_GUARD_RADIUS := 35.0
-## Seconds per rival age-up; keeps rivals' unit tier roughly level with the player's age ladder.
-const RIVAL_AGE_INTERVAL := 100.0
+## Seconds per rival age-up; keeps rivals' unit tier roughly level with the (slow) player age ladder.
+const RIVAL_AGE_INTERVAL := 300.0
 const CIV_SIM_INTERVAL := 1.4
 ## Lower = rivals retrain faster (was 1.75 — felt passive vs player economy).
 const RIVAL_TRAIN_INTERVAL_MULT := 1.35
+## Treasury per rival city per second. Raised (was 0.8) so rivals keep up with the slower player economy.
+const RIVAL_INCOME_PER_CITY := 1.5
 const BANDIT_SPAWN_MIN := 42.0
 const BANDIT_SPAWN_MAX := 85.0
 const WILDLIFE_SPAWN_MIN := 14.0
@@ -276,6 +292,7 @@ const MELEE_LADDER := [[0, "Soldier"], [1, "Spearman"], [2, "Swordsman"], [4, "L
 const RANGED_LADDER := [[0, "Archer"], [3, "Rifleman"], [4, "Drone"], [5, "PrismTank"]]
 
 var _grid_offset := Vector3.ZERO
+var _ground_tone := GroundTone.new(hash(EvolutionState.world_seed + "_ground_tone"))
 var _terr_noise: FastNoiseLite = null
 # MultiMesh batching: cached mesh parts per source GLB path (loaded once, reused for every
 # instance of that tile/groundcover type), and groundcover placements collected during
@@ -325,7 +342,13 @@ var _battle_tutorial_shown := false
 var _siege_auto_opened_cities: Dictionary = {}  # city instance id -> true (once per city crisis)
 
 var _nav: AStarGrid2D = null      # grid pathfinder: units route around water/mountains/buildings/trees
+var _spawn_turns := {}            # capital Vector2i -> units appeared beside it so far
 var _obstacle_cells := {}         # Vector2i -> true (props + buildings that block a whole cell)
+const GROUND_FOLLOW_SPEED := 4.0   # units/s a walker eases up or down a hill
+var _hill_cells: Dictionary = {}  # Vector2i -> that hill tile's yaw in degrees
+var _hill_field: TileHeightfield = null  # surface of the hill tile, in its own mesh space
+var _hill_fit := 1.0              # uniform scale the hill tile is drawn at
+var _flat_top := 0.0              # world height of an ordinary grass tile's top
 
 var _settler: Node3D = null
 var _settler_pos := Vector3.ZERO
@@ -414,7 +437,7 @@ func _apply_carryforward() -> void:
 func _emit_civ_open_brief() -> void:
 	Events.notify.emit(GenomeBonus.foreshadow_line(EvolutionState.genome))
 	Events.notify.emit(
-		"Win paths: found %d cities + Spaceport  ·or·  raze every rival capital"
+		"Win paths: %d cities + Spaceport + one rival eliminated, then Launch  ·or·  raze every rival capital"
 		% WIN_CITY_COUNT
 	)
 
@@ -585,11 +608,13 @@ func _build_ground() -> void:
 	if use_hex_tiles:
 		_build_hex_underlay()
 		_build_hex_terrain(rng)
+		_build_water_sheet(HEX_WATER_LEVEL)
 	else:
 		_build_grass_plane()
 		_build_water_sheet()
 	# Mountains (kept as-is) + sparse open-land flavor. Forests/berries come after so they can avoid
 	# the reserved city clearings (computed deterministically to match the spawners).
+	var clearings := _reserved_clearings()
 	for y in ROWS:
 		for x in COLS:
 			var t := terrain_at(x, y)
@@ -606,9 +631,8 @@ func _build_ground() -> void:
 							rock.scale = Vector3(TILE_3D, TILE_3D * 1.4, TILE_3D)
 				continue
 			if t == Terrain.LAND:
-				_scatter_life(pos, rng)
+				_scatter_life(pos, rng, clearings)
 	# RTS shaping: contiguous forest belts (chokepoints) + visible berry patches (food).
-	var clearings := _reserved_clearings()
 	_grow_forest_belts(rng, clearings)
 	_place_exposed_expansions(rng, clearings)
 	_place_midfield_contest(rng, clearings)
@@ -627,15 +651,80 @@ func _build_hex_terrain(rng: RandomNumberGenerator) -> void:
 		for x in COLS:
 			var terrain: int = terrain_at(x, y)
 			var path := _hex_tile_for(terrain, x, y, rng)
-			var raise := -0.35 if terrain == Terrain.WATER else 0.0
+			var raise := 0.0
+			if terrain == Terrain.WATER:
+				raise = HEX_WATER_ROCKS_RAISE if path == HEX_WATER_ROCKS_TILE else -0.35
 			# Kenney's symmetric hexes support 60-degree rotations; varied grass and
 			# water breakup reads natural without fighting the square navigation grid.
 			var rot := float(rng.randi_range(0, 5) * 60)
 			if not by_path.has(path):
 				by_path[path] = []
 			by_path[path].append({x = x, y = y, raise = raise, rot = rot})
+			if path == HEX_HILL_TILE:
+				_hill_cells[Vector2i(x, y)] = rot
 	for path in by_path:
 		_build_tile_multimesh(path, by_path[path])
+	_build_hill_field()
+
+
+# Hill tiles carry rocks well above an ordinary tile; remember their surface so walkers can
+# stand on it. Needs only the meshes, so it also works without the drawn terrain.
+func _build_hill_field() -> void:
+	var hill_parts := _load_mesh_parts(HEX_HILL_TILE)
+	var grass_parts := _load_mesh_parts(HEX_GRASS_TILE)
+	if hill_parts.is_empty() or grass_parts.is_empty():
+		return
+	var grass_box := _merged_box(grass_parts)
+	_hill_fit = _tile_fit(_merged_box(hill_parts))
+	_flat_top = grass_box.end.y * _tile_fit(grass_box) * _hex_height_multiplier(HEX_GRASS_TILE)
+	_hill_field = TileHeightfield.from_parts(hill_parts)
+
+
+func _tile_fit(box: AABB) -> float:
+	var foot: float = maxf(box.size.x, box.size.z)
+	return (TILE_3D * 1.04 / foot) if foot > 0.0 else 1.0
+
+
+# How far the ground under `pos` stands above an ordinary flat tile top.
+func _ground_lift(pos: Vector3) -> float:
+	if _hill_field == null:
+		return 0.0
+	var cell := _cell_at(pos)
+	if not _hill_cells.has(cell):
+		return 0.0
+	# Undo the tile instance's placement (see _build_tile_multimesh) to land in mesh space.
+	var local := (pos - _tile_pos(cell.x, cell.y)).rotated(Vector3.UP, -deg_to_rad(float(_hill_cells[cell]))) / _hill_fit
+	var top := _hill_field.sample(Vector2(local.x, local.z)) * _hill_fit * _hex_height_multiplier(HEX_HILL_TILE)
+	return maxf(0.0, top - _flat_top)
+
+
+# Walkers keep their own base height; only the eased hill delta rides on top (visual only).
+func _follow_ground(walker: Variant, delta: float) -> void:
+	if not is_instance_valid(walker):
+		return
+	var node: Node3D = walker
+	var want := _ground_lift(node.position)
+	var have := float(node.get_meta("ground_lift", 0.0))
+	if is_equal_approx(want, have):
+		return
+	var now := move_toward(have, want, GROUND_FOLLOW_SPEED * delta)
+	node.position.y += now - have
+	node.set_meta("ground_lift", now)
+
+
+func _tick_ground_follow(delta: float) -> void:
+	if _hill_field == null:
+		return
+	for u in _units:
+		_follow_ground(u.node, delta)
+	for w in _workers:
+		_follow_ground(w, delta)
+	_follow_ground(_settler, delta)
+
+
+# Saves keep the base height, not the hill-lifted one.
+func _unlifted(node: Node3D) -> Vector3:
+	return node.position - Vector3(0.0, float(node.get_meta("ground_lift", 0.0)), 0.0)
 
 
 # Batch every cell using the same tile GLB into one MultiMeshInstance3D (one per submesh, if
@@ -646,9 +735,7 @@ func _build_tile_multimesh(path: String, records: Array) -> void:
 	var parts := _load_mesh_parts(path)
 	if parts.is_empty():
 		return
-	var box := _merged_box(parts)
-	var foot: float = maxf(box.size.x, box.size.z)
-	var fit: float = (TILE_3D * 1.04 / foot) if foot > 0.0 else 1.0
+	var fit := _tile_fit(_merged_box(parts))
 	var height_mult := _hex_height_multiplier(path)
 	var color := _hex_tile_color(path)
 	var board_aabb := _board_aabb()
@@ -656,7 +743,12 @@ func _build_tile_multimesh(path: String, records: Array) -> void:
 		var part: Dictionary = parts[part_idx]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = _mesh_with_albedo_tint(part.mesh, color)
+		mm.use_colors = true
+		if path == HEX_HILL_TILE:
+			# Grass base like the plain grass tiles around it, bare rock like the mountain tiles.
+			mm.mesh = _mesh_with_two_tone_albedo(part.mesh, _hex_tile_color(HEX_GRASS_TILE), _hex_tile_color(HEX_MOUNTAIN_TILE), true)
+		else:
+			mm.mesh = _mesh_with_albedo_tint(part.mesh, color, true)
 		mm.instance_count = records.size()
 		for i in records.size():
 			var rec: Dictionary = records[i]
@@ -664,6 +756,7 @@ func _build_tile_multimesh(path: String, records: Array) -> void:
 			var root_basis := Basis(Vector3.UP, deg_to_rad(rec.rot)).scaled(Vector3(fit, fit * height_mult, fit))
 			var xform: Transform3D = Transform3D(root_basis, pos) * part.xform
 			mm.set_instance_transform(i, xform)
+			mm.set_instance_color(i, _ground_tone.at(pos))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.custom_aabb = board_aabb   # MultiMeshInstance3D doesn't auto-grow its culling AABB
@@ -732,17 +825,18 @@ func _hex_height_multiplier(path: String) -> float:
 
 
 func _hex_tile_color(path: String) -> Color:
-	if path == HEX_WATER_TILE or path == HEX_WATER_ROCKS_TILE:
+	if path == HEX_WATER_ROCKS_TILE:
+		return Color(0.60, 0.62, 0.64)   # its rocks stand clear of the water sheet
+	if path == HEX_WATER_TILE:
 		return Color(0.08, 0.34, 0.58)
 	if path == HEX_SAND_TILE:
 		return Color(0.78, 0.72, 0.50)
 	if path == HEX_MOUNTAIN_TILE or path == HEX_STONE_HILL_TILE:
-		return Color(0.32, 0.36, 0.38)
-	if path == HEX_FOREST_TILE:
-		return Color(0.18, 0.40, 0.22)
-	if path == HEX_HILL_TILE:
-		return Color(0.35, 0.55, 0.25)
-	return Color(0.29, 0.56, 0.30)
+		return Color(0.74, 0.68, 0.52)   # warms the kit's lavender stone to a plain grey
+	# Reds above 1 pull the kit's teal grass toward leaf green, as in the Tribe stage. Forest
+	# tiles take the grass tint so their ground runs into the grass around them; hills tint their
+	# grass and rock separately (_build_tile_multimesh).
+	return Color(1.26, 0.68, 0.36)
 
 
 func _build_hex_underlay() -> void:
@@ -758,7 +852,7 @@ func _build_hex_underlay() -> void:
 	mat.albedo_color = Color(0.30, 0.62, 0.55)
 	mat.roughness = 1.0
 	base.material_override = mat
-	base.position = Vector3(0, -0.08, 0)
+	base.position = Vector3(0, HEX_UNDERLAY_LEVEL, 0)
 	add_child(base)
 
 
@@ -878,11 +972,12 @@ func _nearest_terrain_distance(cell: Vector2i, target: int, max_radius: int) -> 
 	return max_radius + 1
 
 
-# A SINGLE continuous animated water sheet spanning the whole map at WATER_LEVEL (below the grass).
-# Land cells sit on the grass plane above it, so water only reads where the terrain dips to water —
+# A SINGLE continuous animated water sheet spanning the whole map at `level` (below the land).
+# Land cells sit above it, so water only reads where the terrain dips to water —
 # no per-cell flat boxes, no grid seams.
-func _build_water_sheet() -> void:
+func _build_water_sheet(level := WATER_LEVEL) -> void:
 	var water := MeshInstance3D.new()
+	water.name = "WaterSheet"
 	var wm := PlaneMesh.new()
 	wm.size = Vector2(COLS * TILE_3D + TILE_3D * 4.0, ROWS * TILE_3D + TILE_3D * 4.0)
 	water.mesh = wm
@@ -891,10 +986,26 @@ func _build_water_sheet() -> void:
 	smat.set_shader_parameter("shallow_color", WATER_SHALLOW)
 	smat.set_shader_parameter("deep_color", WATER_DEEP)
 	smat.set_shader_parameter("use_water_normal_tex", _bind_shader_texture(smat, "water_normal_tex", "res://assets/textures/water_normal.png"))
+	_bind_shore_map(smat)
 	smat.render_priority = -1
 	water.material_override = smat
-	water.position = Vector3(0, WATER_LEVEL, 0)
+	water.position = Vector3(0, level, 0)
 	add_child(water)
+
+
+# Tells the water where the coast is, so it can paint shallows and surf along it. The map's
+# texels are half a column wide and one row tall, starting at the first tile's corner.
+func _bind_shore_map(smat: ShaderMaterial) -> void:
+	var water := PackedByteArray()
+	water.resize(COLS * ROWS)
+	for y in ROWS:
+		for x in COLS:
+			water[y * COLS + x] = 1 if terrain_at(x, y) == Terrain.WATER else 0
+	smat.set_shader_parameter("shore_map", ImageTexture.create_from_image(ShoreMap.image(water, COLS)))
+	smat.set_shader_parameter("shore_origin",
+			Vector2(_grid_offset.x - HEX_COL_STEP * 0.5, _grid_offset.z - HEX_ROW_STEP * 0.5))
+	smat.set_shader_parameter("shore_size", Vector2(HEX_COL_STEP * (COLS + 0.5), HEX_ROW_STEP * ROWS))
+	smat.set_shader_parameter("use_shore_map", true)
 
 
 func _jitter(rng: RandomNumberGenerator, r: float) -> Vector3:
@@ -904,18 +1015,28 @@ func _jitter(rng: RandomNumberGenerator, r: float) -> Vector3:
 # Sparse open-land flavor: lone trees, occasional rocks, and a groundcover carpet. The forest MASS
 # is grown separately as belts; this just keeps open grassland from looking empty. Trees + rocks
 # block their cell so units route around them.
-func _scatter_life(pos: Vector3, rng: RandomNumberGenerator) -> void:
+func _scatter_life(pos: Vector3, rng: RandomNumberGenerator, clearings: Array[Vector2i]) -> void:
 	var cell := _cell_at(pos)
-	if rng.randf() < SCATTER_TREE_CHANCE and not _near_midfield(cell, MIDFIELD_CLEAR_RADIUS):
-		_mark_obstacle_cell(_cell_at(pos))
+	var open := not _near_midfield(cell, MIDFIELD_CLEAR_RADIUS)
+	# A start draws the same random numbers as any other cell, so maps from existing seeds do not
+	# shift, but its tree or rock is taken away again: nobody should begin hidden behind one.
+	var keep := not _near_clearing(cell, clearings, START_CLEAR_RADIUS)
+	if rng.randf() < SCATTER_TREE_CHANCE and open:
 		var tp := pos + _jitter(rng, 2.4)
-		WorldProps.spawn_tree(self, tp, rng)
-		_resource_nodes["wood"].append(tp)
-	if rng.randf() < SCATTER_ROCK_CHANCE and not _near_midfield(cell, MIDFIELD_CLEAR_RADIUS):
+		var tree := WorldProps.spawn_tree(self, tp, rng)
+		if keep:
+			_mark_obstacle_cell(cell)
+			_resource_nodes["wood"].append(tp)
+		elif tree != null:
+			tree.free()
+	if rng.randf() < SCATTER_ROCK_CHANCE and open:
 		var rp := pos + _jitter(rng, 2.6)
-		WorldProps.spawn_rock(self, rp, rng)
-		_mark_obstacle_cell(_cell_at(pos))
-		_resource_nodes["stone"].append(rp)
+		var rock := WorldProps.spawn_rock(self, rp, rng)
+		if keep:
+			_mark_obstacle_cell(cell)
+			_resource_nodes["stone"].append(rp)
+		elif rock != null:
+			rock.free()
 	for _g in rng.randi_range(SCATTER_GROUNDCOVER_MIN, SCATTER_GROUNDCOVER_MAX):
 		_collect_groundcover(pos + _jitter(rng, 2.9), rng)
 
@@ -1180,14 +1301,19 @@ func _create_settler_node(pos: Vector3) -> void:
 		add_child(_settler)
 	var ring := MeshInstance3D.new()
 	ring.mesh = TorusMesh.new()
-	ring.mesh.outer_radius = 2.0
-	ring.mesh.inner_radius = 1.8
+	ring.mesh.outer_radius = 1.2
+	ring.mesh.inner_radius = 1.0
 	var ring_mat := StandardMaterial3D.new()
 	ring_mat.albedo_color = Color(1, 1, 0.4)
 	ring_mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
 	ring.material_override = ring_mat
 	ring.position = Vector3(0, 0.05, 0)   # TorusMesh already lies flat; the old 90° tilt stood it up as an arch
 	_settler.add_child(ring)
+
+
+func _place_settler(cell: Vector2i) -> void:
+	_settler.position = _tile_pos(cell.x, cell.y) + Vector3(0, 0.2, 0)   # same ground height as other units
+	_settler.set_meta("ground_lift", 0.0)   # the snap dropped any hill lift; _follow_ground eases it back in
 
 
 func _base_income_rate(res: String) -> float:
@@ -1250,6 +1376,7 @@ func _add_city_at(cell: Vector2i) -> void:
 		max_population = 5 + (_expansion * 2) + GenomeBonus.housing_bonus(EvolutionState.genome),
 		tint = Color(0.5, 0.7, 1.0),
 		hp = CITY_MAX_HP, max_hp = CITY_MAX_HP,
+		buildings = [],   # the models of what was built here, each tagged with its town hex
 	}
 	_cities.append(city)
 	if _cities.size() == 1:
@@ -1259,10 +1386,10 @@ func _add_city_at(cell: Vector2i) -> void:
 		Events.notify.emit("Expansion: 2/%d cities · train a Settler for the third" % WIN_CITY_COUNT)
 	elif _cities.size() >= WIN_CITY_COUNT:
 		StageObjectives.complete("civ_third_city", "City trio ready for spaceflight")
-		if _has_spaceport:
+		if _launch_ready():
 			Events.notify.emit("Spaceflight path OPEN — launch when ready (or keep conquering).")
 		else:
-			Events.notify.emit("Cities ready — build a Spaceport (Age 5+) to launch")
+			Events.notify.emit("Cities ready — launch also needs a Spaceport (Age 5+) and %d rival eliminated" % WIN_RIVALS_BEATEN)
 	_count_civ_building("town_center")
 	_mark_obstacle_cell(cell)   # units path around the city footprint
 	_decorate_town(city)
@@ -1276,6 +1403,9 @@ func _found_city() -> void:
 	if terrain_at(cell.x, cell.y) != Terrain.LAND: return
 	if _city_on_cell(cell):
 		Events.notify.emit("A city already stands here — move the Settler to open land first")
+		return
+	if _built_plots().has(cell):
+		Events.notify.emit("A building stands here — move the Settler to open land first")
 		return
 	_add_city_at(cell)
 	_settler.queue_free()
@@ -1309,8 +1439,9 @@ func _train_worker(res: String) -> void:
 	_spend({food = WORKER_COST})
 	var home: Vector3 = _cities.back().position
 	var sp: String = EvolutionState.species_name if EvolutionState.species_name != "" else "human"
-	var w := _spawn_species_unit(sp, home + Vector3(randf_range(-2, 2), 0.2, randf_range(-2, 2)), 0.85)
+	var w := _spawn_species_unit(sp, _spawn_spot(home, 2.0), 0.85)
 	if w == null: return
+	_set_on_ground(w)
 	SpeciesVisuals.express(w, EvolutionState.genome, false)   # workers are your lineage too, slightly smaller
 	# Light genome parts so the army of gatherers still reads as YOUR body plan.
 	GenomeFeatures3D.apply(w, EvolutionState.genome, sp, 0.25)
@@ -1333,8 +1464,9 @@ func _train_unit(name: String) -> void:
 	# Kenney char. No flat tint here — tint_model would replace the textured material; express() applies
 	# the species skin instead. Role/identity reads from skin + scale, not a different mesh.
 	var sp: String = EvolutionState.species_name if EvolutionState.species_name != "" else "human"
-	var node := _spawn_species_unit(sp, home + Vector3(randf_range(-3, 3), 0.2, randf_range(-3, 3)))
+	var node := _spawn_species_unit(sp, _spawn_spot(home, 3.0))
 	if node == null: return
+	_set_on_ground(node)
 	var g: Genome = EvolutionState.genome
 	SpeciesVisuals.express(node, g, false)   # species skin; no genome rescale (keep tile-fit)
 	# Iconic genome parts at low intensity — soldiers carry horns/fangs from Soup→Creature.
@@ -1432,11 +1564,9 @@ func _fit_and_seat(root: Node3D, height: float, footprint_tiles: float = 1.0) ->
 		var max_footprint: float = TILE_3D * minf(footprint_tiles, BUILDING_MAX_FOOTPRINT_TILES)
 		scale_factor = minf(scale_factor, max_footprint / footprint_dim)
 	root.scale = Vector3.ONE * scale_factor
-	var center_x: float = box.position.x + box.size.x * 0.5
-	var center_z: float = box.position.z + box.size.z * 0.5
-	root.position.x -= center_x * scale_factor
-	root.position.y -= box.position.y * scale_factor
-	root.position.z -= center_z * scale_factor
+	# Seat the middle of the model's base on the spot, whichever way the model is turned.
+	var center := box.get_center()
+	root.position -= root.basis * Vector3(center.x, box.position.y, center.z)
 
 
 # Spawn a realistic building model normalized to ~a tile wide, feet on ground. Returns null if the
@@ -1488,24 +1618,149 @@ func _town_decor_for_age() -> Array:
 	return TOWN_DECOR_BY_AGE[clampi(_age, 0, TOWN_DECOR_BY_AGE.size() - 1)]
 
 
-# Scatter a few age-appropriate props in a ring around `center` and return the spawned nodes.
-# Purely cosmetic (no game logic); sits clear of the central capital + unit space. `seed_key`
-# keeps each town's layout stable per age. Shared by player cities and rival cities.
+# Scatter a few age-appropriate props round `center`, one to a hex on the town's prop ring, and
+# return the spawned nodes. Purely cosmetic (no game logic); sits clear of the central capital,
+# its buildings and unit space. `seed_key` keeps each town's layout stable per age. Shared by
+# player cities and rival cities.
 func _scatter_decor(center: Vector3, age: int, seed_key: String) -> Array[Node3D]:
 	var decor: Array[Node3D] = []
 	var pool: Array = TOWN_DECOR_BY_AGE[clampi(age, 0, TOWN_DECOR_BY_AGE.size() - 1)]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(seed_key)
-	var count := rng.randi_range(4, 6)
-	for _i in count:
-		var ang: float = rng.randf() * TAU
-		var rad: float = rng.randf_range(TILE_3D * 1.0, TILE_3D * 1.9)
-		var p: Vector3 = center + Vector3(cos(ang) * rad, 0, sin(ang) * rad)
+	var plots := _town_plots(_cell_at(center), true)
+	for _i in mini(rng.randi_range(4, 6), plots.size()):
+		var plot: Vector2i = plots.pop_at(rng.randi_range(0, plots.size() - 1))
+		var p: Vector3 = _tile_pos(plot.x, plot.y) + _jitter(rng, TOWN_DECOR_JITTER)
 		var pick: String = pool[rng.randi_range(0, pool.size() - 1)]
-		var n := _civ_model(pick, p, 0.55)
+		var n := _stand_decor(pick, p)
 		if n != null:
 			decor.append(n)
 	return decor
+
+
+# One prop, tagged with its model and spot so a save can stand it back up on the same hex.
+func _stand_decor(model_id: String, spot: Vector3) -> Node3D:
+	var n := _civ_model(model_id, spot, 0.55)
+	if n != null:
+		n.set_meta("model_id", model_id)
+		n.set_meta("spot", spot)
+	return n
+
+
+# The open, flat, empty land hexes of the town round a capital, nearest first and the viewer's
+# side before the far side. Props keep to one ring (`decor`), buildings and turrets take the
+# rest; the capital's own hex and the six that touch it stay clear.
+func _town_plots(city_cell: Vector2i, decor: bool) -> Array[Vector2i]:
+	var center := _tile_pos(city_cell.x, city_cell.y)
+	var gathered := {}   # hexes that hold berries, rocks or trees
+	for res: String in _resource_nodes:
+		for p: Vector3 in _resource_nodes[res]:
+			gathered[_cell_at(p)] = true
+	var reach := ceili(TOWN_REACH)
+	var plots: Array[Vector2i] = []
+	for dy in range(-reach, reach + 1):
+		for dx in range(-reach, reach + 1):
+			var cell := city_cell + Vector2i(dx, dy)
+			var steps := _tile_pos(cell.x, cell.y).distance_to(center) / HEX_COL_STEP
+			if steps <= TOWN_PLAZA or steps > TOWN_REACH or (absf(steps - TOWN_DECOR_RING) < 0.1) != decor:
+				continue
+			if not _cell_walkable(cell) or _hill_cells.has(cell) or gathered.has(cell):
+				continue
+			plots.append(cell)
+	var rank := func(cell: Vector2i) -> float:
+		var off := _tile_pos(cell.x, cell.y) - center
+		return snappedf(off.length(), 0.5) * 100.0 - off.z + off.x * 0.01
+	plots.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return rank.call(a) < rank.call(b))
+	return plots
+
+
+# Open land a unit can stand on: inside the map, not water or mountain, not a forest or a city.
+func _cell_walkable(cell: Vector2i) -> bool:
+	if cell.x < 0 or cell.y < 0 or cell.x >= COLS or cell.y >= ROWS:
+		return false
+	return terrain_at(cell.x, cell.y) == Terrain.LAND and not _obstacle_cells.has(cell)
+
+
+# The town hexes that already hold one of the player's buildings or a turret.
+func _built_plots() -> Dictionary:
+	var built := {}
+	for c in _cities:
+		for b: Node3D in c.buildings:
+			built[b.get_meta("plot")] = true
+	for u in _units:
+		if DEFENSES.has(u.get("unit_type", "")) and not bool(u.get("dying", false)) and is_instance_valid(u.get("node")):
+			built[_cell_at(u.node.position)] = true
+	return built
+
+
+# The hex a city's next building or turret goes on: the nearest open town hex (built hexes are
+# blocked, so they never show up). A town that has run out of room doubles up on its capital's
+# hex rather than refuse the build.
+func _next_plot(city_cell: Vector2i) -> Vector2i:
+	var plots := _town_plots(city_cell, false)
+	return city_cell if plots.is_empty() else plots[0]
+
+
+# Open a hex a building or turret stood on, unless a city holds it.
+func _release_cell(cell: Vector2i) -> void:
+	if _city_on_cell(cell):
+		return
+	_obstacle_cells.erase(cell)
+	if _nav != null:
+		_nav.set_point_solid(cell, false)
+
+
+# Where a newly trained unit appears: an open hex touching the capital (the nearest open hexes
+# further out if that ring is blocked), taking the hexes in turn. The base height is returned;
+# `_set_on_ground` lifts the unit onto a hill. With no open hex it falls back to the old scatter.
+func _spawn_spot(capital: Vector3, scatter: float) -> Vector3:
+	var city_cell := _cell_at(capital)
+	var best := INF
+	var open: Array[Vector2i] = []
+	for dy in range(-SPAWN_REACH, SPAWN_REACH + 1):
+		for dx in range(-SPAWN_REACH, SPAWN_REACH + 1):
+			var cell := city_cell + Vector2i(dx, dy)
+			if cell == city_cell or not _cell_walkable(cell):
+				continue
+			var steps := snappedf(_tile_pos(cell.x, cell.y).distance_to(capital) / HEX_COL_STEP, 0.1)
+			if steps > best:
+				continue
+			if steps < best:
+				open.clear()
+				best = steps
+			open.append(cell)
+	if open.is_empty():
+		return capital + Vector3(randf_range(-scatter, scatter), 0.2, randf_range(-scatter, scatter))
+	var turn: int = int(_spawn_turns.get(city_cell, 0))
+	_spawn_turns[city_cell] = turn + 1
+	var spot := open[turn % open.size()]
+	var room := HEX_COL_STEP * 0.25   # keeps the jitter well inside the hex
+	return _tile_pos(spot.x, spot.y) + Vector3(randf_range(-room, room), 0.2, randf_range(-room, room))
+
+
+# Raise a node onto the hill rock under it; `_follow_ground` keeps it there as it walks.
+func _set_on_ground(node: Node3D) -> void:
+	var lift := _ground_lift(node.position)
+	node.position.y += lift
+	node.set_meta("ground_lift", lift)
+
+
+# Stand a building's model on a free hex of its city's town.
+func _place_building(city: Dictionary, kind: String) -> void:
+	_stand_building(city, kind, _next_plot(city.cell))
+
+
+func _stand_building(city: Dictionary, kind: String, plot: Vector2i) -> void:
+	var bpos := _tile_pos(plot.x, plot.y)
+	var b := _real_building(kind, bpos)
+	if b == null:
+		b = spawn_model(TD % str(BUILDING_MODELS.get(kind, "tower-round-base")), bpos, TILE_3D * 0.5, randf_range(0, 360))
+	if b == null:
+		return
+	b.set_meta("plot", plot)
+	b.set_meta("kind", kind)
+	_mark_obstacle_cell(plot)
+	city.buildings.append(b)
 
 
 # (Re)decorate a player city; decor nodes are tracked on the city dict so an age-up can clear
@@ -1522,6 +1777,11 @@ func _count_civ_building(id: String) -> void:
 	if id.is_empty():
 		return
 	_civ_buildings_by_type[id] = int(_civ_buildings_by_type.get(id, 0)) + 1
+
+
+func _uncount_civ_building(id: String) -> void:
+	if not id.is_empty():
+		_civ_buildings_by_type[id] = maxi(0, int(_civ_buildings_by_type.get(id, 0)) - 1)
 
 
 func _climate_building_id(name: String) -> String:
@@ -1543,18 +1803,14 @@ func _complete_building(name: String) -> void:
 	if _cities.is_empty():
 		return   # last city lost while this build was queued — drop it rather than crash on .back()
 	AudioManager.play_sfx("civ_build")
-	var home_pos: Vector3 = _cities.back().position
 	if BUILDINGS.has(name):
 		var spec: Dictionary = BUILDINGS[name]
-		var bpos: Vector3 = home_pos + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
-		var b := _real_building(name, bpos)
-		if b == null:
-			b = spawn_model(TD % str(BUILDING_MODELS.get(name, "tower-round-base")), bpos, TILE_3D * 0.5, randf_range(0, 360))
+		_place_building(_cities.back(), name)
 		_count_civ_building(_climate_building_id(name))
 		_structures.append({kind = name, cell = _cities.back().cell})
 		match spec.effect:
 			"popcap":
-				for c in _cities: c.max_population += int(spec.value)
+				_cities.back().max_population += int(spec.value) * _cities.size()   # the same total, held by this city so razing it takes it back
 			"food_rate":
 				_granary_bonus += float(spec.value)
 			"military":
@@ -1562,15 +1818,17 @@ func _complete_building(name: String) -> void:
 			"spaceport":
 				_has_spaceport = true
 				StageObjectives.complete("civ_spaceport", "Spaceport online")
-				if _cities.size() >= WIN_CITY_COUNT:
-					Events.notify.emit("Spaceport + cities — LAUNCH path open (or finish conquest).")
+				if _cities.size() >= WIN_CITY_COUNT and _rivals_beaten() >= WIN_RIVALS_BEATEN:
+					Events.notify.emit("Spaceport + cities + a beaten rival — LAUNCH path open (or finish conquest).")
 				else:
-					Events.notify.emit("Spaceport online — need %d cities to launch" % WIN_CITY_COUNT)
+					Events.notify.emit("Spaceport online — launch needs %d cities and %d rival eliminated" % [WIN_CITY_COUNT, WIN_RIVALS_BEATEN])
 	elif DEFENSES.has(name):
 		var spec: Dictionary = DEFENSES[name]
 		var model: String = DEFENSE_MODELS.get(name, "weapon-turret")
-		var node := spawn_model(TD % model, home_pos + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2)), TILE_3D * 0.5, randf_range(0, 360))
+		var plot := _next_plot(_cities.back().cell)
+		var node := spawn_model(TD % model, _tile_pos(plot.x, plot.y), TILE_3D * 0.5, randf_range(0, 360))
 		if node == null: return
+		_mark_obstacle_cell(plot)
 		_count_civ_building(_climate_building_id(name))
 		var entry := {
 			node = node, faction = 0, unit_type = name,
@@ -1606,6 +1864,7 @@ func _research() -> void:
 
 func _advance_age() -> void:
 	if _age + 1 >= AGES.size(): return
+	if _tech_index <= _age: return   # the age's tech comes first
 	var next := _age + 1
 	if not _can_afford({food = AGE_COST[next]}): return
 	_spend({food = AGE_COST[next]})
@@ -1731,13 +1990,14 @@ func _offer_truce() -> void:
 ## Dual-win meter: spaceflight (cities + Spaceport) vs conquest (rivals eliminated).
 func _win_paths_readout() -> String:
 	var space_bit: String
-	if _has_spaceport and _cities.size() >= WIN_CITY_COUNT:
+	var beaten: String = "rivals beaten %d/%d" % [mini(_rivals_beaten(), WIN_RIVALS_BEATEN), WIN_RIVALS_BEATEN]
+	if _launch_ready():
 		space_bit = "Spaceport READY — Launch"
 	elif _has_spaceport:
-		space_bit = "Spaceport online · cities %d/%d" % [_cities.size(), WIN_CITY_COUNT]
+		space_bit = "Spaceport online · cities %d/%d · %s" % [_cities.size(), WIN_CITY_COUNT, beaten]
 	else:
 		var age_need: String = "need Age 5+" if _age < 5 else "build Spaceport"
-		space_bit = "Spaceflight: cities %d/%d · %s" % [_cities.size(), WIN_CITY_COUNT, age_need]
+		space_bit = "Spaceflight: cities %d/%d · %s · %s" % [_cities.size(), WIN_CITY_COUNT, beaten, age_need]
 	var alive_rivals: int = 0
 	for r in _rivals:
 		if not (r.cities as Array).is_empty():
@@ -1787,8 +2047,21 @@ func _planet_snapshot() -> Dictionary:
 	return snap
 
 
+## Rival nations with every city razed.
+func _rivals_beaten() -> int:
+	var n: int = 0
+	for r in _rivals:
+		if (r.cities as Array).is_empty():
+			n += 1
+	return n
+
+
+func _launch_ready() -> bool:
+	return _has_spaceport and _cities.size() >= WIN_CITY_COUNT and _rivals_beaten() >= WIN_RIVALS_BEATEN
+
+
 func launch_to_space() -> void:
-	if not _has_spaceport or _cities.size() < WIN_CITY_COUNT: return
+	if not _launch_ready(): return
 	_win_civ("spaceflight")
 
 
@@ -1900,10 +2173,11 @@ func _rival_spawn_unit(r: Dictionary) -> void:
 	var spec: Dictionary = UNITS.get(name, {})
 	if spec.is_empty(): return
 	var home: Vector3 = r.cities[0]
-	var pos: Vector3 = home + Vector3(randf_range(-3, 3), 0.2, randf_range(-3, 3))
+	var pos := _spawn_spot(home, 3.0)
 	# Rivals render as their archetype's rigged species mesh (animated), distinct per lineage.
 	var node: Node3D = _spawn_species_unit(str(RIVAL_SPECIES.get(str(r.archetype), "human")), pos)
 	if node == null: return
+	_set_on_ground(node)
 	_apply_unit_identity(node, name, int(r.faction))   # per-type scale + emissive role prop (rival)
 	var entry := {
 		node = node, faction = r.faction, unit_type = name,
@@ -1994,7 +2268,7 @@ func _rival_order_attack(r: Dictionary) -> void:
 func _tick_rivals(delta: float) -> void:
 	for r in _rivals:
 		if r.cities.is_empty(): continue
-		r.treasury += (r.cities.size() * 0.8 + 0.3) * delta
+		r.treasury += (r.cities.size() * RIVAL_INCOME_PER_CITY + 0.3) * delta
 		if r.age < 5:
 			r.age_t += delta
 			if r.age_t >= RIVAL_AGE_INTERVAL:
@@ -2137,6 +2411,17 @@ func _on_city_destroyed(cell: Vector2i) -> void:
 	_begin_death(c)   # fades + frees the capital node; marks the dict dying/hp=0
 	for d in c.get("decor", []):
 		if is_instance_valid(d): d.queue_free()
+	for b: Node3D in c.get("buildings", []):
+		if is_instance_valid(b):
+			_release_cell(b.get_meta("plot", cell))
+			_take_back_building(str(b.get_meta("kind", "")))
+			b.queue_free()
+	for i in range(_structures.size() - 1, -1, -1):
+		if _structures[i].cell == cell:
+			_structures.remove_at(i)
+	_has_barracks = _any_city_has("Barracks")
+	_has_spaceport = _any_city_has("Spaceport")
+	_raze_turrets_of(c)
 	var marker: Node3D = c.get("rally_marker")
 	if is_instance_valid(marker): marker.queue_free()
 	_obstacle_cells.erase(cell)
@@ -2149,6 +2434,37 @@ func _on_city_destroyed(cell: Vector2i) -> void:
 	if _cities.is_empty() and _settler == null and not _stage_done:
 		_stage_done = true
 		Events.game_lost.emit("Your civilization was wiped from the planet.")
+
+
+# Undo what one building of a razed city gave: its food rate and its emissions.
+func _take_back_building(kind: String) -> void:
+	if not BUILDINGS.has(kind):
+		return
+	if BUILDINGS[kind].effect == "food_rate":
+		_granary_bonus = maxf(0.0, _granary_bonus - float(BUILDINGS[kind].value))
+	_uncount_civ_building(_climate_building_id(kind))
+
+
+func _any_city_has(kind: String) -> bool:
+	for city: Dictionary in _cities:
+		for b: Node3D in city.buildings:
+			if is_instance_valid(b) and b.get_meta("kind", "") == kind:
+				return true
+	return false
+
+
+# The turrets of a razed city fall with it: those nearer to it than to any city that remains.
+func _raze_turrets_of(razed: Dictionary) -> void:
+	for u: Dictionary in _units:
+		var node: Node3D = u.get("node")
+		if int(u.get("faction", -1)) != 0 or not DEFENSES.has(u.get("unit_type", "")) or bool(u.get("dying", false)) or not is_instance_valid(node):
+			continue
+		var kept := INF
+		for city: Dictionary in _cities:
+			kept = minf(kept, node.position.distance_squared_to(city.position))
+		if node.position.distance_squared_to(razed.position) < kept:
+			_uncount_civ_building(_climate_building_id(str(u.unit_type)))
+			_begin_death(u)
 
 
 ## Raze a rival city: burn the capital, free its decor, reopen the nav cell, and remove it from
@@ -2171,6 +2487,8 @@ func _raze_rival_city(r: Dictionary, t: Dictionary) -> void:
 	var remaining: int = int((r.get("cities", []) as Array).size())
 	if remaining <= 0:
 		Events.notify.emit("Conquest: %s eliminated!" % _rival_short_name(r))
+		if _launch_ready() and _rivals_beaten() == WIN_RIVALS_BEATEN:
+			Events.notify.emit("A rival is beaten — Launch to Space is open.")
 		AudioManager.play_sfx("win")
 	else:
 		Events.notify.emit("Razed a %s city — %d left." % [_rival_short_name(r), remaining])
@@ -2719,6 +3037,8 @@ func _begin_death(u: Dictionary) -> void:
 	var node: Node3D = u.get("node")
 	if not is_instance_valid(node):
 		return
+	if int(u.get("faction", -1)) == 0 and DEFENSES.has(u.get("unit_type", "")):
+		_release_cell(_cell_at(node.position))   # the turret's hex opens up again
 	_set_selected_visual(u, false)
 	var bar: Node3D = node.get_node_or_null("HpBar")
 	if bar != null:
@@ -2921,7 +3241,7 @@ func _end_left_action(screen_pos: Vector2) -> void:
 		if cell.x >= 0 and cell.y >= 0 and cell.x < COLS and cell.y < ROWS and terrain_at(cell.x, cell.y) == Terrain.LAND:
 			var dist: int = maxi(absi(cell.x - _cell_at(_settler.position).x), absi(cell.y - _cell_at(_settler.position).y))
 			if dist <= 1 + _extra_move:
-				_settler.position = _tile_pos(cell.x, cell.y) + Vector3(0, 0.2, 0)   # same ground height as other units
+				_place_settler(cell)
 	else:
 		_click_select(screen_pos)
 
@@ -3532,7 +3852,7 @@ func _build_ui() -> void:
 	var abtn := _make_build_button("Armor +N", "Buy the next armor tier (HP +15% per tier)", _buy_armor_upgrade)
 	upgrades_grid.add_child(abtn)
 	_upgrade_btns.append(abtn)
-	_launch_btn = _make_build_button("Launch to Space", "Launch to the Space stage (requires a Spaceport and %d cities)" % WIN_CITY_COUNT, _launch_to_space)
+	_launch_btn = _make_build_button("Launch to Space", "Launch to the Space stage (requires a Spaceport, %d cities and %d rival eliminated)" % [WIN_CITY_COUNT, WIN_RIVALS_BEATEN], _launch_to_space)
 	_launch_btn.disabled = true
 	upgrades_grid.add_child(_launch_btn)
 	_truce_btn = _make_build_button("☮ Ceasefire", "Buy a temporary ceasefire with rival civs", _offer_truce)
@@ -3646,10 +3966,14 @@ func _update_status() -> void:
 			ok = ok and _can_afford(DEFENSES[spec_name].cost)
 			ok = ok and _age >= DEFENSES[spec_name].get("min_age", 0)
 		btn.disabled = not ok
-	if _launch_btn: _launch_btn.disabled = not _has_spaceport or _cities.size() < WIN_CITY_COUNT
+	if _launch_btn: _launch_btn.disabled = not _launch_ready()
 	if _age + 1 < AGES.size():
-		_age_btn.text = "Advance to %s (%d food)" % [AGES[_age + 1], AGE_COST[_age + 1]]
-		_age_btn.disabled = not _can_afford({food = AGE_COST[_age + 1]})
+		if _tech_index <= _age:
+			_age_btn.text = "Advance to %s — research %s first" % [AGES[_age + 1], TECHS[_age].name]
+			_age_btn.disabled = true
+		else:
+			_age_btn.text = "Advance to %s (%d food)" % [AGES[_age + 1], AGE_COST[_age + 1]]
+			_age_btn.disabled = not _can_afford({food = AGE_COST[_age + 1]})
 	else:
 		_age_btn.text = "Advance to %s (MAX)" % AGES[_age]
 		_age_btn.disabled = true
@@ -3910,6 +4234,7 @@ func _process(delta: float) -> void:
 	_tick_roamers(delta)
 	_tick_rivals(delta)
 	_tick_combat(delta)
+	_tick_ground_follow(delta)
 	_tick_siege_prompt(delta)
 	_cleanup_dead()
 	_tick_diplomacy(delta)
@@ -4101,7 +4426,25 @@ func _capture_cities() -> Array[Dictionary]:
 			"production_rate": int(city.get("production_rate", 1)),
 			"max_population": int(city.get("max_population", 5)),
 			"tint": city.get("tint", Color(0.5, 0.7, 1.0)),
+			"buildings": _capture_buildings(city),
+			"decor": _capture_decor(city),
 		})
+	return out
+
+
+func _capture_buildings(city: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for b: Node3D in city.get("buildings", []):
+		if is_instance_valid(b):
+			out.append({"kind": str(b.get_meta("kind", "")), "plot": _vec2i_to_dict(b.get_meta("plot", city.get("cell", Vector2i.ZERO)))})
+	return out
+
+
+func _capture_decor(city: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for d: Node3D in city.get("decor", []):
+		if is_instance_valid(d) and d.has_meta("model_id"):
+			out.append({"model": str(d.get_meta("model_id")), "spot": _vec3_to_dict(d.get_meta("spot"))})
 	return out
 
 
@@ -4112,7 +4455,7 @@ func _capture_workers() -> Array[Dictionary]:
 			continue
 		out.append({
 			"res": str(worker.get_meta("res", "food")),
-			"position": _vec3_to_dict(worker.position),
+			"position": _vec3_to_dict(_unlifted(worker)),
 			"home": _vec3_to_dict(worker.get_meta("home", worker.position)),
 			"wander_target": _vec3_to_dict(worker.get_meta("wander_target", worker.position)),
 		})
@@ -4131,7 +4474,7 @@ func _capture_units() -> Array[Dictionary]:
 		out.append({
 			"faction": int(unit.get("faction", 0)),
 			"unit_type": str(unit.get("unit_type", "Soldier")),
-			"position": _vec3_to_dict(node.position),
+			"position": _vec3_to_dict(_unlifted(node)),
 			"max_hp": _finite_float(unit.get("max_hp", 1.0), 1.0),
 			"hp": _finite_float(unit.get("hp", 1.0), 1.0),
 			"damage": _finite_float(unit.get("damage", 1.0), 1.0),
@@ -4189,7 +4532,7 @@ func _capture_build_queue() -> Array[Dictionary]:
 func _capture_settler() -> Dictionary:
 	return {
 		"active": _settler != null and is_instance_valid(_settler),
-		"position": _vec3_to_dict(_settler.position if _settler != null and is_instance_valid(_settler) else _settler_pos),
+		"position": _vec3_to_dict(_unlifted(_settler) if _settler != null and is_instance_valid(_settler) else _settler_pos),
 	}
 
 
@@ -4253,6 +4596,31 @@ func _restore_cities(value: Variant) -> void:
 		city["production_rate"] = int(entry.get("production_rate", city.get("production_rate", 1)))
 		city["max_population"] = int(entry.get("max_population", city.get("max_population", 5)))
 		city["tint"] = entry.get("tint", city.get("tint", Color(0.5, 0.7, 1.0)))
+		var saved_buildings: Variant = entry.get("buildings", [])
+		if saved_buildings is Array:
+			for b_val: Variant in saved_buildings:
+				if b_val is Dictionary and BUILDINGS.has(str((b_val as Dictionary).get("kind", ""))):
+					var b: Dictionary = b_val
+					_stand_building(city, str(b.kind), _dict_to_vec2i(b.get("plot", {}), city.cell))
+		_restore_decor(city, entry.get("decor", null))
+
+
+# Stand the saved props back up verbatim: re-rolling them here would see a different set of
+# blocked hexes (turrets and later cities are not back yet). An old save has none and keeps the roll.
+func _restore_decor(city: Dictionary, saved: Variant) -> void:
+	if not (saved is Array):
+		return
+	for old: Node3D in city.get("decor", []):
+		if is_instance_valid(old):
+			old.queue_free()
+	var decor: Array[Node3D] = []
+	for d_val: Variant in saved:
+		if d_val is Dictionary:
+			var d: Dictionary = d_val
+			var n := _stand_decor(str(d.get("model", "")), _dict_to_vec3(d.get("spot", {}), city.position))
+			if n != null:
+				decor.append(n)
+	city["decor"] = decor
 
 
 func _restore_settler(value: Variant) -> void:
@@ -4261,7 +4629,9 @@ func _restore_settler(value: Variant) -> void:
 	var entry: Dictionary = value
 	if not bool(entry.get("active", false)):
 		return
-	_create_settler_node(_dict_to_vec3(entry.get("position", {}), _settler_pos))
+	var pos := _dict_to_vec3(entry.get("position", {}), _settler_pos)
+	pos.y = 0.0   # the save holds the pawn's raised height; _create_settler_node raises it again
+	_create_settler_node(pos)
 
 
 func _restore_workers(value: Variant) -> void:
@@ -4318,6 +4688,8 @@ func _restore_unit(entry: Dictionary) -> void:
 		"command_pos": _dict_to_vec3(entry.get("command_pos", {}), Vector3.ZERO),
 	}
 	_units.append(unit)
+	if faction == 0 and DEFENSES.has(unit_type):
+		_mark_obstacle_cell(_cell_at(pos))
 	if faction == BANDIT_FAC:
 		_bandits.append(unit)
 	elif faction == WILD_FAC or faction == PREDATOR_FAC:
@@ -4352,33 +4724,42 @@ func _apply_unit_identity(node: Node3D, unit_type: String, faction: int) -> void
 	# Accent = type's base hue tinted toward the faction color so allegiance + type both read.
 	var fac_col: Color = FACTION_COLORS[clampi(faction, 0, FACTION_COLORS.size() - 1)]
 	var accent: Color = (vis.get("accent", Color.WHITE) as Color).lerp(fac_col, 0.35)
-	var prop := _build_unit_prop(str(vis.get("weapon", "blade")), accent)
+	# Measure the body first (node-local, so the scale above does not matter): the prop is built for a
+	# body 1 tall with its feet at 0, then scaled and seated on that measured box.
+	var body := _root_aabb(node)
+	var height := maxf(body.size.y, 0.0001)
+	var prop := _build_unit_prop(str(vis.get("weapon", "blade")), accent, body.size.x * 0.5 / height)
 	if prop != null:
 		prop.name = "TypeProp"
+		prop.position = Vector3(body.get_center().x, body.position.y, body.get_center().z)
+		prop.scale = Vector3.ONE * height
 		node.add_child(prop)
 
 
-# Builds a unit's role prop from a few unshaded/emissive primitives. Sized in the node's LOCAL space
-# (body ≈ 1 unit tall there) and offset to the hand/side; precision isn't needed at RTS tile scale.
-func _build_unit_prop(weapon: String, accent: Color) -> Node3D:
+# Builds a unit's role prop from a few unshaded/emissive primitives. Sized for a body 1 unit tall with
+# its feet at y=0 (the caller scales and seats it on the measured body); `half_width` is the body's
+# half-width in those units, so side props sit on the body. Every prop is held or worn at hand,
+# shoulder, back or chest height, never floating; precision isn't needed at RTS tile scale.
+func _build_unit_prop(weapon: String, accent: Color, half_width: float) -> Node3D:
 	var root := Node3D.new()
+	var side := half_width * 0.6
 	match weapon:
 		"blade":   # short sword held at the right side
-			_add_prim(root, BoxMesh.new(), Vector3(0.07, 0.55, 0.07), Vector3(0.42, 0.7, 0.05), accent)
+			_add_prim(root, BoxMesh.new(), Vector3(0.07, 0.45, 0.07), Vector3(side, 0.5, 0.05), accent)
 		"spear":   # long pole taller than the bearer (Bronze-age spear)
-			_add_prim(root, CylinderMesh.new(), Vector3(0.04, 1.35, 0.04), Vector3(0.42, 0.8, 0.05), accent)
+			_add_prim(root, CylinderMesh.new(), Vector3(0.04, 1.35, 0.04), Vector3(side, 0.7, 0.05), accent)
 		"bow":     # tall thin rod (the bow stave) plus a notch
-			_add_prim(root, CylinderMesh.new(), Vector3(0.05, 0.9, 0.05), Vector3(0.42, 0.65, 0.0), accent)
+			_add_prim(root, CylinderMesh.new(), Vector3(0.05, 0.55, 0.05), Vector3(side, 0.6, 0.0), accent)
 		"rifle":   # boxy long arm held forward
-			_add_prim(root, BoxMesh.new(), Vector3(0.1, 0.12, 0.7), Vector3(0.35, 0.6, 0.3), accent)
-		"cannon":  # fat cylinder barrel projecting forward (tanks)
-			_add_prim(root, CylinderMesh.new(), Vector3(0.22, 0.85, 0.22), Vector3(0.0, 0.9, 0.55), accent, Vector3(90, 0, 0))
-		"coil":    # tall emissive rod overhead (tesla)
-			_add_prim(root, CylinderMesh.new(), Vector3(0.09, 0.7, 0.09), Vector3(0.0, 1.25, 0.0), accent)
-		"orb":     # small hovering sphere above (drone)
-			_add_prim(root, SphereMesh.new(), Vector3(0.32, 0.32, 0.32), Vector3(0.0, 1.2, 0.0), accent)
+			_add_prim(root, BoxMesh.new(), Vector3(0.1, 0.12, 0.5), Vector3(side, 0.6, 0.15), accent)
+		"cannon":  # fat cylinder barrel at chest height pointing forward (tanks)
+			_add_prim(root, CylinderMesh.new(), Vector3(0.16, 0.5, 0.16), Vector3(0.0, 0.65, 0.25), accent, Vector3(90, 0, 0))
+		"coil":    # emissive rod worn on the back, rising past the shoulders (tesla)
+			_add_prim(root, CylinderMesh.new(), Vector3(0.09, 0.5, 0.09), Vector3(0.0, 0.8, -0.05), accent)
+		"orb":     # small sphere at the shoulder (drone)
+			_add_prim(root, SphereMesh.new(), Vector3(0.28, 0.28, 0.28), Vector3(side, 0.8, 0.0), accent)
 		_:
-			_add_prim(root, BoxMesh.new(), Vector3(0.1, 0.1, 0.1), Vector3(0.4, 0.7, 0.0), accent)
+			_add_prim(root, BoxMesh.new(), Vector3(0.1, 0.1, 0.1), Vector3(side, 0.7, 0.0), accent)
 	return root
 
 
@@ -4390,8 +4771,8 @@ func _add_prim(root: Node3D, mesh: Mesh, size: Vector3, offset: Vector3, color: 
 	elif mesh is CylinderMesh:
 		var c := mesh as CylinderMesh
 		c.height = size.y
-		c.top_radius = size.x
-		c.bottom_radius = size.x
+		c.top_radius = size.x * 0.5
+		c.bottom_radius = size.x * 0.5
 	elif mesh is SphereMesh:
 		var s := mesh as SphereMesh
 		s.radius = size.x * 0.5

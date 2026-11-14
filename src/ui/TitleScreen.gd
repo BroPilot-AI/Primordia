@@ -6,40 +6,31 @@ extends CanvasLayer
 signal start_requested(branch: int)  # a Genome.Branch int, or -1 for the seeded/random origin
 signal continue_requested()          # resume from the checkpoint save
 
+const BACKDROP_SHADER := preload("res://assets/shaders/title_backdrop.gdshader")
 const OPTIONS := [
-	{label = "Freshwater Pool", branch = Genome.Branch.FRESHWATER, tip = "Lakes & rivers — human lineage"},
-	{label = "Saltwater Coast", branch = Genome.Branch.SALTWATER, tip = "Tidal shallows — short alien lineage"},
-	{label = "Deep Ocean", branch = Genome.Branch.DEEP_OCEAN, tip = "Abyss — tall grey lineage"},
-	{label = "Inland Soil", branch = Genome.Branch.INLAND, tip = "Wet soil — reptilian lineage"},
+	{label = "Freshwater Pool", branch = Genome.Branch.FRESHWATER, lineage = "human lineage", tip = "Lakes & rivers"},
+	{label = "Saltwater Coast", branch = Genome.Branch.SALTWATER, lineage = "short alien lineage", tip = "Tidal shallows"},
+	{label = "Deep Ocean", branch = Genome.Branch.DEEP_OCEAN, lineage = "tall grey lineage", tip = "Abyss"},
+	{label = "Inland Soil", branch = Genome.Branch.INLAND, lineage = "reptilian lineage", tip = "Wet soil"},
 ]
 
 
 func _build(planet_label: String) -> void:
 	layer = 50
 
-	var stars := TextureRect.new()
-	stars.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	stars.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	stars.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	stars.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stars.modulate = Color(0.55, 0.62, 0.70)
-	if ResourceLoader.exists("res://assets/textures/space_skybox.png"):
-		stars.texture = load("res://assets/textures/space_skybox.png")
-	add_child(stars)
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.05, 0.06, 0.62)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	var backdrop := ColorRect.new()
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var sky := ShaderMaterial.new()
+	sky.shader = BACKDROP_SHADER
+	backdrop.material = sky
+	add_child(backdrop)
 
 	var inner := StageChrome.modal_card(self, 520.0)
 
 	if ResourceLoader.exists("res://assets/sprites/game_title_logo.png"):
 		var logo := TextureRect.new()
 		logo.texture = load("res://assets/sprites/game_title_logo.png")
-		logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		logo.custom_minimum_size = Vector2(460, 110)
 		logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		inner.add_child(logo)
 	else:
@@ -61,13 +52,15 @@ func _build(planet_label: String) -> void:
 	inner.add_child(prompt)
 
 	for opt in OPTIONS:
-		var b := StageChrome.make_button(str(opt.label), str(opt.get("tip", "")), _on_origin_pressed.bind(int(opt.branch)))
+		var b := StageChrome.make_button("%s  ·  %s" % [opt.label, opt.lineage], str(opt.tip), _on_origin_pressed.bind(int(opt.branch)), true)
 		inner.add_child(b)
 
-	inner.add_child(StageChrome.make_button("Random Origin", "Seed picks a biome for you", _on_origin_pressed.bind(-1)))
+	inner.add_child(StageChrome.make_button("Random Origin", "Seed picks a biome for you", _on_origin_pressed.bind(-1), true))
 	inner.add_child(StageChrome.h_sep())
 	inner.add_child(StageChrome.make_button("Quit", "Leave Primordia", func() -> void: get_tree().quit()))
-	inner.add_child(StageChrome.hint_label("Your origin locks lineage for the whole run"))
+	var hint := StageChrome.hint_label("Your origin locks lineage for the whole run")
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	inner.add_child(hint)
 
 
 func _on_origin_pressed(branch: int) -> void:

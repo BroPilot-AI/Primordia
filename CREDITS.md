@@ -34,8 +34,8 @@ These are used under [Creative Commons Attribution 3.0](https://creativecommons.
 | [SpaceShip](https://poly.pizza/m/ud8Y8uanwm) | akushal_hin | Battleship hull |
 | [Spaceship](https://poly.pizza/m/8G2xUSbSQT) | mastjie | Flagship |
 | [Space Shuttle](https://poly.pizza/m/djxolbz_CYC) | Poly by Google | Carrier hull |
-| [Flying saucer](https://poly.pizza/m/fojR5i3h_nh) | Poly by Google | Creature-stage UFO flyover |
-| [Moon](https://poly.pizza/m/9OPocAqXM0u) | Poly by Google | Space moons |
+| [Flying saucer](https://poly.pizza/m/fojR5i3h_nh) | Poly by Google | Creature-stage UFO flyover (vertex normals added) |
+| [Moon](https://poly.pizza/m/9OPocAqXM0u) | Poly by Google | Space moons (vertex normals added) |
 | [Cabin](https://poly.pizza/m/1GpgtI-C05M) | Poly by Google | Civ cabin |
 | [Log cabin](https://poly.pizza/m/f7uccD5iyz0) | Poly by Google | Civ log cabin |
 
