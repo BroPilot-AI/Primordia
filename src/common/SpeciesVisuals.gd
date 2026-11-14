@@ -9,8 +9,7 @@
 class_name SpeciesVisuals
 
 const _DATA := {
-	# RIGGED + ANIMATED models (walk/idle). The MiMo bake-off meshes in assets/models/bakeoff/ are
-	# static (no skeleton) so they can't walk — kept on disk for a future rigging pass. See memory.
+	# RIGGED + ANIMATED models (walk/idle).
 	# BASE rigged + animated humanoid (Quaternius, CC0, walk/idle). We BUILD on this rig — genome
 	# deforms the Skeleton3D bones + stage swaps the dressing (caveman→…→astronaut). NOT copy-paste.
 	"human":       {model = "res://assets/models/generated/species_rigged/human.glb", model_adv = "res://assets/models/generated/species_rigged_adv/human.glb", norm_adv = 1.0, norm = 1.0},  # TRELLIS creature + Mixamo rig (Walk/Idle, textured)

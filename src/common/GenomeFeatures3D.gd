@@ -25,15 +25,12 @@ class_name GenomeFeatures3D
 # Per-species overrides: brow_y / brow_x / brow_z (forehead horn root — only honored when
 # brow=true), fang_spacing (fang row X extent as fraction of the clamped body half-width), stalk_x
 # (eye-stalk base X as fraction of body half-width), back_z (dorsal-spike Z as fraction of body depth,
-# default lerps back→center
-# like the original; human uses a fixed back-of-body Z so the row sits along the spine).
+# default lerps back→center; human uses a fixed back-of-body Z so the row sits along the spine).
 #
-# Human (Kenney character-male-a) was retuned 2026-06-07 (FIX-GENOME-FEATURES-HUMAN). Measured
-# local AABB pos=(-0.38,0,-0.17) size=(0.77,0.67,0.34) → body-mesh
-# y=0.00-0.37 (frac 0.00-0.55), head-mesh y=0.34-0.67 (frac 0.51-1.00). Old fractions (head_y
-# 0.96 / mouth_y 0.72 / back_y 0.74) landed at the crown, chin, and neck — wrong landmarks for a
-# humanoid silhouette. New fractions target the forehead (0.85), lower-face mouth (0.68), shoulder
-# spine-top (0.50), ribcage (0.28), pelvis (0.12).
+# Human (Kenney character-male-a): measured local AABB pos=(-0.38,0,-0.17) size=(0.77,0.67,0.34)
+# → body-mesh y=0.00-0.37 (frac 0.00-0.55), head-mesh y=0.34-0.67 (frac 0.51-1.00). Its
+# fractions target the forehead (0.85), lower-face mouth (0.68), shoulder spine-top (0.50),
+# ribcage (0.28), pelvis (0.12).
 # Tuned for TRELLIS + Mixamo species_rigged meshes (and AABB fallback when bones missing).
 # Humanoid rows keep parts small/iconic; snouted rows keep creature bulk.
 const ANCHORS := {
@@ -67,7 +64,7 @@ const _PART_TAIL_BARB: String = "tail_barb"
 # Runtime material override: parts are neutral grey on disk; the engine paints them in the species
 # tint at the requested alpha so they read as organic. Three material families:
 #   BONE   — fangs/horns/tusks/claws/back_spikes/armor_plates/tail_barbs: nearly opaque, just
-#            enough translucency to feel organic (ghostly/see-through was the v1 problem).
+#            enough translucency to feel organic (fully see-through reads as ghostly).
 #   EYE    — eye stalk: fully opaque fleshy stalk + the existing emissive eye bulb.
 #   MEM    — fins/frills: genuinely translucent webbing (clearly see-through at edges).
 const _ALPHA_BONE: float = 1.0   # OPAQUE — 0.92 read as ghostly washed-out "white nothings" in play
@@ -79,7 +76,7 @@ const _ALPHA_AQUATIC: float = 0.52
 # flat-shaded art. Keep them as the source of truth until the generated parts are regenerated clean.
 const _USE_GENERATED_GLBS: bool = false
 # Runtime part-gluing is ON for the Creature-stage genome read. The AABB guard below prevents the
-# old Quaternius 100x-armature scale trap, while the per-species anchor spans keep primitive parts
+# Quaternius 100x-armature scale trap, while the per-species anchor spans keep primitive parts
 # on the actual head/spine instead of the widest arm/tentacle bounds.
 const _RUNTIME_PARTS: bool = true
 
@@ -92,10 +89,10 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 	# so features read as small iconic attachments instead of a clustered costume.
 	var humanoid: bool = bool(a.get("brow", false))
 	var box: AABB = _local_aabb(root)
-	# Sanitize the Quaternius 100x-armature rig-scale trap (the documented cause of the morph hang):
+	# Sanitize the Quaternius 100x-armature rig-scale trap:
 	# an implausible height means _local_aabb caught the un-normalized armature, so the procedural
-	# parts would balloon ~100x and freeze. Fall back to a unit box → parts stay sane. This is what
-	# lets _RUNTIME_PARTS be re-enabled safely on the rigged models. [[reference_rigged_glb_scale]]
+	# parts would balloon ~100x and freeze. Fall back to a unit box → parts stay sane, which
+	# keeps _RUNTIME_PARTS safe on the rigged models.
 	if box.size == Vector3.ZERO or box.size.y > 4.0 or box.size.y < 0.05:
 		box = AABB(Vector3(-0.5, 0, -0.5), Vector3(1, 1, 1))
 	# Prefer Skeleton3D bone landmarks when present (Mixamo / TRELLIS-rigged species) so parts
@@ -138,7 +135,7 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 	var tint: Color = genome.color if genome.color != null else Color(0.72, 0.74, 0.68)
 	# Bone/ivory base → strong species tint. The "hint of bone" comes from a DARK muted base
 	# (0.65/0.65/0.60) not a bright ivory — a bright base at lerp 0.72 still reads pale sage because
-	# the base color overwhelms the tint. v1 lerp was 0.25 with bright base → near-white "mustache".
+	# the base color overwhelms the tint.
 	var bone: Color = Color(0.65, 0.65, 0.60).lerp(tint, 0.72)
 	var ivory: Color = Color(0.72, 0.72, 0.66).lerp(tint, 0.72)
 
@@ -149,7 +146,7 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 	# size → bulk
 	root.scale *= Vector3.ONE * (0.9 + clampf(genome.size, 0.0, 1.0) * 0.35)
 
-	# Runtime feature parts can still be disabled for emergency perf/debug builds; the default path
+	# Runtime feature parts can be switched off for performance; the default path
 	# uses them so the creature silhouette carries the evolved genome axes.
 	if not _RUNTIME_PARTS:
 		return
@@ -158,8 +155,8 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 	if genome.defense > 0.30:
 		var hd: float = clampf(genome.defense, 0.0, 1.0)
 		# Horns (pair, swept back from the brow). Kept short: a brow accent, not rabbit ears.
-		# FIX-GENOME-FEATURES-HUMAN: humanoid species (brow=true + a.brow_y set) route the horn root
-		# to the FOREAD via brow_y/brow_x/brow_z; snouted species fall through to the original
+		# Humanoid species (brow=true + a.brow_y set) route the horn root
+		# to the forehead via brow_y/brow_x/brow_z; snouted species fall through to the default
 		# head_y-anchored placement.
 		var horn_len: float = (0.08 + hd * 0.10) * u * horn_size_mult
 		var use_brow_anchor: bool = bool(a.get("brow", false)) and a.has("brow_y")
@@ -174,7 +171,7 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 			horn.rotation_degrees = Vector3(28.0, s * 16.0, 0.0)   # up + back (positive X = back) + symmetric yaw splay
 			root.add_child(horn)
 		# Dorsal spike ridge. Moderate trim — kept tall enough to read as a dorsal threat display.
-		# FIX-GENOME-FEATURES-HUMAN: species with back_z set use a fixed back-of-body Z (spine line)
+		# Species with back_z set use a fixed back-of-body Z (spine line)
 		# so the row sits along the spine; the default lerp from back→center stays for the long-bodied
 		# Quaternius species where the spike row tapers along the body length. spike_size_mult lets
 		# per-species overrides (e.g. human) boost the ridge to read against a narrower silhouette.
@@ -223,7 +220,7 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 		var cn: float = clampf(genome.carnivory, 0.0, 1.0)
 		# Fang row across the mouth. Moderate trim — fangs should be menacing but not a comb.
 		# Spacing uses the clamped head/body width so adjacent teeth read as distinct rather than
-		# a single fused fang-plate. FIX-GENOME-FEATURES-HUMAN: per-species fang_spacing + fang_count
+		# a single fused fang-plate. Per-species fang_spacing + fang_count
 		# overrides — the default 0.32 spans ±52% of the head (too wide for a human mouth) and the
 		# default 4-fang count reads as a comb on the narrower human face.
 		var fangs: int = int(round((1.0 + maxf(0.0, cn - 0.45) * 5.0 * intensity) * fang_count_mult))
@@ -238,9 +235,8 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 			fang.rotation_degrees = Vector3(180.0, 0.0, 0.0)
 			root.add_child(fang)
 		# Forward claw — single piece, swept forward from the chest. Moderate trim.
-		# FIX-GENOME-FEATURES-HUMAN: was y0 + 0.04*u (feet level — wrong for all species, the
-		# comment says "from the chest"). Move to body_y (mid-torso) so the claw reads as chest-
-		# mounted for every species, including the Kenney human.
+		# Anchored at body_y (mid-torso) so the claw reads as chest-mounted for every species,
+		# including the Kenney human.
 		if not humanoid:   # a chest-mounted claw reads odd on an upright human — creatures only
 			var claw_h: float = (0.045 + cn * 0.045) * u
 			var claw: Node3D = _try_glb_part(_PART_CLAW, claw_h, bone, _ALPHA_BONE)
@@ -249,8 +245,8 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 			claw.position = Vector3(cx, body_y, mouth_z)
 			claw.rotation_degrees = Vector3(140.0, 0.0, 0.0)
 			root.add_child(claw)
-		# Tusks: pair, only for big carnivores (high carnivory AND high size). ~30% trim — was
-		# tusk-poles, now reads as mouth-framing.
+		# Tusks: pair, only for big carnivores (high carnivory AND high size). Kept short so they
+		# frame the mouth instead of standing out like poles.
 		if cn > 0.70 and genome.size > 0.50 and not humanoid:
 			var tusk_h: float = (0.055 + cn * 0.055) * u * (0.85 + genome.size * 0.35) * tusk_size_mult
 			for s in [-1.0, 1.0]:
@@ -263,8 +259,8 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 				root.add_child(tusk)
 
 	# ---- senses → eye-stalks ------------------------------------------------------------------
-	# Stalk is OPAQUE fleshy skin (was v1's translucent look — read as alien cobwebs). Eye bulb
-	# stays as the existing emissive _eye(). Stalk length trimmed ~30% so it sits periscope-short
+	# Stalk is OPAQUE fleshy skin (a translucent stalk reads as alien cobwebs). Eye bulb
+	# stays as the existing emissive _eye(). The stalk is short so it sits periscope-like
 	# above the head rather than telescoping up like a tower.
 	if genome.senses > 0.50:   # antenna/eye-stalks appear on strong sensory genomes across all species
 		var sn: float = clampf(genome.senses, 0.0, 1.0)
@@ -276,9 +272,9 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 				es.rotation_degrees = Vector3(-10.0, 0.0, s * 26.0)
 				root.add_child(es)
 			else:
-				# Fallback: the original primitive stalk + glowing eye combo.
-				# FIX-GENOME-FEATURES-HUMAN: per-species stalk_x override (default 0.34 keeps the
-				# original Quaternius placement; the human uses 0.22 so stalks sit on top of the
+				# Fallback: the primitive stalk + glowing eye combo.
+				# Per-species stalk_x override (default 0.34 keeps the
+				# Quaternius placement; the human uses 0.22 so stalks sit on top of the
 				# narrower head instead of at the temples).
 				var stalk := _stalk(stalk_len, stalk_len * 0.16, tint.lightened(0.25))
 				stalk.position = Vector3(cx + s * halfx * stalk_x_off, head_y + stalk_len * 0.45, cz)
@@ -290,8 +286,8 @@ static func apply(root: Node3D, genome, species: String = "", intensity: float =
 
 	# ---- locomotion → side fins + back frill (translucent, aquatic-leaning) -------------------
 	# These stay in the genuinely-translucent family (membrane). Sized to read as fins/frill, not
-	# sails — slight trim from v1 so they don't outgrow the body silhouette.
-	if genome.locomotion > 0.75 and not humanoid:   # fins/frill only on strong swimmers (was adding to the clutter)
+	# sails, and small enough not to outgrow the body silhouette.
+	if genome.locomotion > 0.75 and not humanoid:   # fins/frill only on strong swimmers
 		var lo: float = clampf(genome.locomotion, 0.0, 1.0)
 		var fin_size: float = (0.16 + lo * 0.14) * u
 		for s in [-1.0, 1.0]:
@@ -334,7 +330,7 @@ static func _try_glb_part(stem: String, target_y: float, col: Color, alpha: floa
 
 # Uniform scale so the part's full-chain AABB.size.y matches `target_y`; recenter X/Y/Z so the
 # part's mesh centroid sits at the local origin (primitives have origin at center, so anchor maths
-# stay valid). Mirrors CampProps._root_aabb / _fit_and_seat ([[rigged_glb_scale]]) — accumulates the
+# stay valid). Mirrors CampProps._root_aabb / _fit_and_seat — accumulates the
 # full mesh→root transform chain, otherwise an intermediate node scale balloons the fit.
 static func _fit_part_y(root: Node3D, target_y: float) -> void:
 	var box: AABB = _part_aabb(root)
@@ -446,9 +442,8 @@ static func _eye(radius: float, col: Color) -> MeshInstance3D:
 	return mi
 
 
-# Flat carapace plate (broad, thin) — fallback when armor_plate.glb is missing. Was nearly
-# cubic in v1 (stood off the body like a brick); now wider-than-tall and very thin so it reads
-# as a scute hugging the silhouette.
+# Flat carapace plate (broad, thin) — fallback when armor_plate.glb is missing. Wider than tall
+# and very thin so it reads as a scute hugging the silhouette, not a brick.
 static func _armor_plate_fallback(size: float, col: Color) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var m := BoxMesh.new()
@@ -605,7 +600,7 @@ static func _bone_local(skel: Skeleton3D, root: Node3D, names: Array) -> Vector3
 
 
 # Host-avatar AABB. Walks the FULL transform chain from each MeshInstance3D up to `root` so any
-# scale parked on an intermediate node (common in CC0 rigged GLBs — see [[rigged_glb_scale]]) is
+# scale parked on an intermediate node (common in CC0 rigged GLBs) is
 # counted; otherwise the fit silently undersizes and anchors cluster wrongly.
 static func _local_aabb(root: Node3D) -> AABB:
 	var out := AABB()

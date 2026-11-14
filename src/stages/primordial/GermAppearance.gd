@@ -1,7 +1,6 @@
 ## Pure-logic mapping from `organelle_layout` → 2D visual feature counts.
 ##
-## Lives separately from Germ.gd so it's unit-testable without spinning up a scene
-## (per [[godot]] integration-test rules). The Germ node walks this table to spawn /
+## Lives separately from Germ.gd as pure logic. The Germ node walks this table to spawn /
 ## update child visual nodes (Polygon2D / Line2D) — see Germ._rebuild_features.
 ##
 ## Feature keys (string) → drawn primitive on the Germ:
@@ -16,8 +15,7 @@
 class_name GermAppearance
 
 ## ORGANELLE id → {feature: <key>, per_count: <int>}.
-## Keys are QUOTED strings — bareword `flagellum:` would compile-error at load
-## (see godot 4.6 dictionary-key gotcha in the [[godot]] skill).
+## Keys are QUOTED strings — bareword `flagellum:` would compile-error at load.
 const ORGANELLE_VISUALS: Dictionary = {
 	"flagellum":     {"feature": "tail",  "per_count": 1},
 	"toxin_vacuole": {"feature": "spike", "per_count": 4},
@@ -51,12 +49,6 @@ static func layout_signature(layout: Array) -> String:
 	for entry: Variant in layout:
 		parts.append(String(entry))
 	return ",".join(parts)
-
-
-## Has at least one of the named feature for this layout — convenience for tests
-## and call-sites that just want a boolean ("does this cell sprout a tail?").
-static func has_feature(layout: Array, feature: String) -> bool:
-	return int(feature_counts(layout).get(feature, 0)) > 0
 
 
 ## The player's body/membrane colour: the genome colour pushed to a vivid, bright version so

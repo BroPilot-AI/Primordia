@@ -30,7 +30,7 @@ func _show_title() -> void:
 
 
 ## DEBUG stage-jump: Shift+1..5 loads any stage instantly (1=soup, 2=creature, 3=tribe, 4=civ,
-## 5=space) with a ready genome — test a stage without grinding the earlier ones. Dev-only.
+## 5=space) with a ready genome. Debug builds only.
 func _unhandled_input(event: InputEvent) -> void:
 	if not OS.is_debug_build():
 		return
@@ -107,11 +107,9 @@ func _morph_caption(index: int) -> String:
 # picks a button (Play Again / Retry Stage / Main Menu) — the card has no other
 # dismissal path so a win/loss can't be skipped by accident.
 #
-# Coordinate with STORY-CUTSCENE-WIRE: Space completion is the only producer of
-# `game_won`, and it's fired from StageManager._on_final_stage_complete() (see
-# StageManager.gd:122). That hook no longer shows a transition card — the win card
-# here is the terminal frame. Defeat is fired from CivStage3D / SpaceStage3D when the
-# player loses all cities / systems.
+# Space completion is the only producer of `game_won` (StageManager._on_final_stage_complete),
+# so the win card here is the terminal frame. Defeat is fired from CivStage3D / SpaceStage3D
+# when the player loses all cities / systems.
 
 func _on_game_won() -> void:
 	# Run complete — wipe the checkpoint so a "Continue" on the title screen can't
@@ -120,8 +118,8 @@ func _on_game_won() -> void:
 	SaveManager.clear()
 	EvolutionState.stop_run_clock()
 
-	# Defensive: if a previous EndCard is still on screen (e.g. a re-emit from a
-	# test or a back-to-back win/loss), free it so we don't stack overlays.
+	# Defensive: if a previous EndCard is still on screen (e.g. a back-to-back win/loss),
+	# free it so we don't stack overlays.
 	_close_existing_end_card()
 
 	var screen: CanvasLayer = _open_end_card(

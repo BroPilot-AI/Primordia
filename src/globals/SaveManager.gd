@@ -41,8 +41,8 @@ func _on_stage_changed(_stage: int) -> void:
 		save_current(DEFAULT_SLOT)
 
 
-## Only the real game autosaves; test harnesses load stages from their own
-## scenes and must not overwrite the player's Continue save.
+## Only the real game autosaves: a stage scene run on its own (outside the main scene)
+## must not overwrite the player's Continue save.
 func autosave_allowed(scene_path: String) -> bool:
 	return scene_path != "" and scene_path == ProjectSettings.get_setting("application/run/main_scene", "")
 

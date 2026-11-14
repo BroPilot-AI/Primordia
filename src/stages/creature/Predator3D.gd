@@ -99,8 +99,8 @@ func _physics_process(delta: float) -> void:
 		_stage.on_player_caught(global_position)
 		return
 
-	# Breakoff: hunted too long without landing a catch -> give up and stand down. This is what
-	# stops the old "glued forever, unescapable" chase.
+	# Breakoff: hunted too long without landing a catch -> give up and stand down, so a chase
+	# can always be escaped.
 	_chase_t += delta
 	if _chase_t > CreatureBalance.predator_chase_giveup_time:
 		_chase_t = 0.0

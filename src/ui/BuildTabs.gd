@@ -116,11 +116,6 @@ func get_container(index: int) -> Control:
 	return _tabs[index]["container"]
 
 
-# Tab count, for tests + callers that loop.
-func tab_count() -> int:
-	return _tabs.size()
-
-
 # Currently active tab index, or -1 if none.
 func get_active() -> int:
 	return _active_index

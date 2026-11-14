@@ -25,8 +25,8 @@ func _build_environment(preset: String) -> void:
 			env.background_mode = Environment.BG_SKY
 			env.sky = sky
 			env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-			env.ambient_light_energy = 0.6   # was 0.9 — flat-bright washed out forms; lower = contrast + warm-sun pop
-			# The #1 "premium low-poly" fix: SSAO lays the dark contact crease where props/units meet the
+			env.ambient_light_energy = 0.6   # lower = more contrast and warm-sun pop; brighter washes out forms
+			# SSAO lays the dark contact crease where props/units meet the
 			# ground so nothing reads as a floating sticker. Plus a subtle glow for stylized pop.
 			env.ssao_enabled = true
 			env.ssao_radius = 1.6
@@ -214,7 +214,7 @@ func _enable_vertex_colors(root: Node) -> void:
 
 # Preserve an imported mesh's textures and UV-driven detail while shifting its palette.
 # A duplicated mesh/material pair keeps the source GLB immutable and avoids the flat-color
-# material_override that previously erased the Kenney colormap entirely.
+# material_override that would erase the Kenney colormap entirely.
 # `per_instance_color` lets a MultiMesh shade each instance on top (see GroundTone).
 func _mesh_with_albedo_tint(source: Mesh, tint: Color, per_instance_color := false) -> Mesh:
 	if source == null:

@@ -2,11 +2,9 @@ class_name HidingSpot3D extends Area3D
 ## A readable "hide here" POI — a dense thicket of the same megakit bushes used for ambient
 ## flora (visually coherent with the biome) sitting on a soft green ground marker. Deliberately
 ## GREEN and grounded to read as distinct from the purple emissive mutation pools
-## (CreatureStage3D._spawn_mutation_zone, Color(0.62,0.22,0.88)) — the old version was a single
-## bare grey-green sphere floating half-buried in the ground with no marker, which is why players
-## couldn't tell where to hide.
+## (CreatureStage3D._spawn_mutation_zone, Color(0.62,0.22,0.88)), so players can tell where to hide.
 
-const HIDE_RADIUS: float = 2.6   # was 2.0 — a bit more generous so a shelter is reachable in time
+const HIDE_RADIUS: float = 2.6   # generous enough that a shelter is reachable in time
 # The visual marker is bigger than the actual trigger radius on purpose — at the strategic-camera
 # top-down distance players view the arena from, a marker sized to the trigger alone (2.6u) all
 # but disappeared into the grass. A bigger, brighter disc reads as a landmark from across the map.
@@ -63,7 +61,7 @@ func _build_ground_marker() -> void:
 
 
 # A dense, UNIFORM bush cluster (deliberately not the random ambient mix — see THICKET_MODEL)
-# reads clearly as a landmark, unlike the old bare floating sphere. Grounded, individually
+# reads clearly as a landmark. Grounded, individually
 # rotated like every other WorldProps prop for visual consistency with the rest of the dressing.
 func _build_thicket() -> void:
 	_spawn_thicket_bush(Vector3.ZERO, THICKET_HEIGHT)

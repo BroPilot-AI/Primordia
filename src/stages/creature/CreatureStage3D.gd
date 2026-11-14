@@ -96,8 +96,7 @@ const TRAITS := [
 		icon = "res://assets/sprites/trait_symbiosis.png",
 	},
 ]
-# UI-BUYMENU-REDESIGN: tabbed build panel — Craft. Pure layout refactor; _update_build_buttons
-# still iterates _build_buttons and the knap_btn text/disabled toggle works as before.
+# Tabbed build panel — Craft. _update_build_buttons owns the button state.
 const BUILD_PANEL_SIZE := Vector2(360, 0)  # matches StageChrome.PANEL_WIDTH
 
 var is_night: bool = false
@@ -231,7 +230,7 @@ func _build_ground() -> void:
 	ground.position.y = -2.10
 	add_child(ground)
 	# Stylized hex-tile field over the circular arena (Civ's kit + MultiMesh batching). Headless
-	# tests skip GLB loading (the flat slab above is enough for logic-only runs).
+	# runs skip GLB loading (the flat slab above is enough there).
 	if DisplayServer.get_name() != "headless":
 		_build_hex_field()
 
@@ -326,7 +325,7 @@ func _build_hex_multimesh(path: String, records: Array) -> void:
 		mmi.name = "HexMM_%s_%d" % [path.get_file().get_basename(), part_idx]
 		# Do not override the imported surface material. The kit's colormap carries
 		# most of its visual detail; replacing it with a blank vertex-color material
-		# was what made the map look like a pale, flat debug board.
+		# makes the map look like a pale, flat board.
 		add_child(mmi)
 
 
@@ -458,7 +457,7 @@ func _spawn_initial_entities() -> void:
 
 
 # Uniform random point INSIDE the circular arena (polar with sqrt for even area distribution) so
-# entities land on the hex field, not out in the void corners of the old square.
+# entities land on the hex field, not out in the void corners of a bounding square.
 func _rand_arena() -> Vector3:
 	var a := _rng.randf() * TAU
 	var r := sqrt(_rng.randf()) * (ARENA - 6.0)
@@ -779,7 +778,7 @@ func on_player_caught(from_pos: Vector3) -> void:
 	_check_discovery()
 	_update_hud()
 	if _player and _player.has_method("knockback"):
-		# A SHOVE, not a launch — the old 700 flung the player clear off the ±80 map into the void.
+		# A SHOVE, not a launch — a much larger value flings the player off the map.
 		var away := _player.global_position - from_pos
 		var dir := away.normalized() if away.length() > 0.01 else Vector3(0, 0, 1)
 		_player.knockback(Vector2(dir.x, dir.z), 110.0)
@@ -1151,7 +1150,7 @@ func _capture_node_positions(group: String, class_name_text: String) -> Array[Di
 		var node: Node3D = node_val
 		# Skip nodes pending deletion: restore() queue_frees the freshly spawned defaults
 		# in the same frame the post-load autosave captures, which would otherwise save
-		# the doomed nodes AND their replacements (save grew every load cycle).
+		# the doomed nodes AND their replacements (the save would grow every load cycle).
 		if node.is_queued_for_deletion():
 			continue
 		var script: Script = node.get_script()

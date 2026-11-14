@@ -53,8 +53,8 @@ func _process(delta: float) -> void:
 	var spd: float = SPEED.get(kind, 100.0)
 	if kind == "wolf":
 		if _retreat_t > 0.0:
-			# Bit once and scattered the band — now it lopes off and leaves (it used to camp on the
-			# leader at the fire and bite every 3s forever, draining all food with no counterplay).
+			# Bit once and scattered the band: it lopes off and leaves instead of camping on the
+			# leader at the fire and draining all food with no counterplay.
 			_retreat_t -= delta
 			if _player != null:
 				var away: Vector3 = global_position - _player.global_position
@@ -73,8 +73,7 @@ func _process(delta: float) -> void:
 				global_position += dir * spd * delta
 				_face(dir)
 			else:
-				# In range: bite (scatters the band / steals food). The old `elif` bound to
-				# `_player != null`, so this NEVER fired while a player existed.
+				# In range: bite (scatters the band / steals food).
 				_retreat_t = WOLF_RETREAT_TIME
 				if _stage and _stage.has_method("wolf_scatter"):
 					_stage.wolf_scatter()

@@ -2,8 +2,7 @@ class_name CreatureBalance
 
 ## Player traversal speed (units/sec). DERIVED, not guessed: the arena (CreatureStage3D.ARENA) is
 ## a radius-130 circle, so a full traversal is the 260u diameter. Target a brisk-but-controllable
-## ~5s crossing at full tilt => 260 / 5 = 52.0. (Original was 360 — a ~0.4s crossing, unplayable;
-## then 32 for the old radius-80 arena, rescaled here for the larger radius-130 map.)
+## ~5s crossing at full tilt => 260 / 5 = 52.0.
 const player_speed: float = 52.0
 
 ## --- Predator chase feel (mirrors the escapable-hunter design in primordial/SoupHunter.gd) ---
@@ -30,19 +29,17 @@ const predator_lunge_cooldown: float = 2.0   # recovery between lunges
 ## player.
 const predator_catch_radius: float = 3.0
 
-## Aggro radius: was 600 — bigger than the entire arena, so predators homed in from literally
-## anywhere the instant night fell. A sane fraction of the radius-130 arena (well under it), bumped
-## from 34 when the arena grew from radius-80 to radius-130.
+## Aggro radius: a fraction of the radius-130 arena, so predators don't home in from anywhere
+## on the map the instant night falls.
 const predator_aggro_radius: float = 48.0
 
-## Breakoff: the fix for "perfectly glued, unescapable" predators. If a predator has chased for
+## Breakoff: keeps predators escapable. If a predator has chased for
 ## this long without landing a catch, it gives up and stands down for predator_reaggro_cooldown
-## before it can hunt again — no more permanent pursuit.
+## before it can hunt again.
 const predator_chase_giveup_time: float = 6.0
 const predator_reaggro_cooldown: float = 4.0
 
-## Kept for the value()/fallback lookup below (legacy alias — see predator_cruise_speed for the
-## tunable that actually drives chase speed now).
+## Same value as predator_cruise_speed, under the key value("predator_speed") answers.
 const predator_speed: float = predator_cruise_speed
 
 ## Fire deterrent: a lit Campfire3D (built from the Craft menu) is a night SAFE ZONE. Predators

@@ -28,7 +28,7 @@ const MAX_ANIMALS := 7
 const ANIMAL_INTERVAL := 10.5
 const HERD_RECYCLE_MIN_DIST := 15.0   # never recycle an animal the leader may be chasing
 const PASSIVE_FOOD_RATE := 0.10
-const TARGET_POP := 18           # a real village, earned in ~5min (measured by pace sim); 30 was a ~16min grind
+const TARGET_POP := 18           # a real village, earned in ~5 min
 const START_POP := 4
 const HUT_COST := {wood = 3}
 const TREE_COUNT := 96
@@ -53,14 +53,14 @@ const ECO_CAP := 100.0           # per-resource local supply capacity (Ancient C
 const ECO_REGROW := 0.028        # logistic regrow rate toward capacity
 const Thinker := preload("res://src/stages/tribe/ThinkerModel.gd")
 const THINK_RADIUS := 22.0           # leader must be within this of the fire to advance research (Kainga)
-const THINK_RATE := 0.085            # research progress/sec at the fire (was 0.07 — felt sticky)
+const THINK_RATE := 0.085            # research progress/sec at the fire
 const DAY_LEN := 36.0                # seconds per day/night cycle (sun sweep + night dim)
 const HUT_CAPACITY := 2              # adults a hut shelters; ONLY housed adults bear children
 const BASE_SHELTER := 2              # the campfire/founders' shelter houses the first couple
 # Matches MaterialNode3D's sphere — the leader collects by walking over.
 const PICKUP_RADIUS := 2.5
-# UI-BUYMENU-REDESIGN: tabbed build panel — Learn / Build. Pure layout refactor; refresh logic + the
-# `b.text.begins_with(name + " (")` lookup in _refresh_tech_buttons is preserved verbatim.
+# Tabbed build panel — Learn / Build. _refresh_tech_buttons finds each button by
+# `b.text.begins_with(name + " (")`, so keep that text format.
 const BUILD_PANEL_SIZE := Vector2(360, 0)
 const BIOMES := {
 	"human": {"ground": Color(0.34, 0.50, 0.30), "name": "Grassland"},
@@ -82,7 +82,7 @@ var population: int = START_POP
 var food: int = 0
 var inventory: Dictionary = {}
 var food_bonus: int = 0
-## Extra food per successful hunt — granted by the "Hunting" tech (previously a no-op purchase).
+## Extra food per successful hunt — granted by the "Hunting" tech.
 var _hunt_bonus: int = 0
 var _raid_factor: float = 1.0
 var _researched: Dictionary = {}
@@ -553,7 +553,7 @@ func _build_camp() -> void:
 
 
 func _sync_band() -> void:
-	# Render the population as actual bodies milling around camp (was just an int).
+	# Render the population as actual bodies milling around camp.
 	var want: int = mini(population, MAX_BAND)
 	while _villagers.size() < want:
 		# The whole band is YOUR evolved species (the leader's lineage), not generic humans.
@@ -1006,7 +1006,7 @@ func gather(id: String, amt: int) -> void:
 
 
 func _add_food(amt: int) -> void:
-	# Food is now a stock that feeds the lifecycle (gates yearly births); population growth
+	# Food is a stock that feeds the lifecycle (gates yearly births); population growth
 	# happens in _tick_year via LifecycleModel, not directly from food.
 	food += amt
 	_refresh()
@@ -1042,8 +1042,8 @@ func _build_hut() -> void:
 	inventory["wood"] = int(inventory["wood"]) - int(HUT_COST.wood)
 	_huts += 1
 	StageObjectives.complete("tribe_hut", "Raised a hut — housing unlocks growth")
-	# Keep the hearth clear (same exclusion the flora scatter already uses) — a hut landing on
-	# top of the campfire/glow light was a real risk with a pure random box and no min radius.
+	# Keep the hearth clear (same exclusion the flora scatter uses) so no hut lands on
+	# top of the campfire/glow light.
 	var pos: Vector3 = CAMP_CENTER
 	for _try in 8:
 		pos = CAMP_CENTER + Vector3(_rng.randf_range(-16, 16), 0, _rng.randf_range(-16, 16))

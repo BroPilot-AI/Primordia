@@ -21,7 +21,7 @@ const PREY_NUTRITION := 0.5    # food value once outgrown and eaten (~ the best 
 const BITE_SETBACK_MULT := 0.15  # progress lost per nibble = setback * this (seconds of feeding)
 const MATCH_MIN := 0.6         # a hunter is born at germ radius * a roll in this range, never
 const MATCH_MAX := 1.4         # below its base size; the germ outgrows base hunters in ~30 s, and
-                               # without this the predator was harmless for the rest of the stage
+                               # without this the predator would be harmless for the rest of the stage
 
 var data: Dictionary = {}
 var radius := 34.0

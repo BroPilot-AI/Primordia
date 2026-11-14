@@ -3,7 +3,7 @@ class_name UnitAnimator
 ##
 ## Generalizes PlayerCreature3D._find_clip into the full RTS state set. Given a unit node and a
 ## state string, plays the matching baked clip resolved BY KEYWORD — so Tribe's walk/idle rigs and
-## the advanced 22-clip Mixamo rigs both work through one path (see [[primordia-rts-animations]]).
+## the advanced 22-clip Mixamo rigs both work through one path.
 ##
 ## Per-node cache (AnimationPlayer + resolved clip names + current state) lives in node metadata,
 ## so it is freed with the unit — no global registry to leak. Unknown/absent clips fall back to idle.

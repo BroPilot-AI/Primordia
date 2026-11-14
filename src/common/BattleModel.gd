@@ -20,7 +20,7 @@ static func make_combatant(id: Variant, kind: String, faction: int, hp: float, m
 	}
 
 
-## Auto-resolve a fight with a seeded RNG (deterministic for tests). Returns a result dict:
+## Auto-resolve a fight with a seeded RNG (same seed, same result). Returns a result dict:
 ## {won, friend_alive: Array[id], foe_alive: Array[id], friend_hp: {id:hp}, foe_hp: {id:hp}}
 static func auto_resolve(friends: Array, foes: Array, rng: RandomNumberGenerator = null) -> Dictionary:
 	var f: Array = _clone_side(friends)

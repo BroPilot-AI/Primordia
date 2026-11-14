@@ -144,8 +144,7 @@ func _advance_to_next_stage() -> void:
 
 
 func _on_final_stage_complete() -> void:
-	# SPACE completion is terminal. WINLOSE-SCREENS can replace this hook with the
-	# richer victory/defeat presentation without touching the transition-card flow.
+	# SPACE completion is terminal: Main shows the victory card on `game_won`.
 	Events.game_won.emit()
 
 

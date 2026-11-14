@@ -146,7 +146,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	# Stay on the ground plane and inside the arena — knockback/drift can't sink you or fling
-	# you into the void at the edge (the "plain of nothing" the player was thrown onto).
+	# you into the void at the edge.
 	global_position.y = GROUND_Y
 	# Radial clamp to the circular hex arena (keeps the player on the tiles, not just a square).
 	var flat := Vector2(global_position.x, global_position.z)

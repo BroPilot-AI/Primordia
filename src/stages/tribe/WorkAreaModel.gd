@@ -54,7 +54,5 @@ static func assign(worker_positions: Array, areas: Array) -> Dictionary:
 
 static func yield_for(kind: String, worker_count: int, delta: float) -> float:
 	# Map zone kinds to balance keys explicitly — "hunt"→hunt_yield, gathers→gather_rate.
-	# (The old kind+"_rate" lookup matched nothing in TribeBalance, so every zone ran at
-	# the 1.0 fallback and hunting was no better than foraging.)
 	var rate: float = TribeBalance.value("hunt_yield" if kind == "hunt" else "gather_rate", 1.0)
 	return worker_count * rate * delta

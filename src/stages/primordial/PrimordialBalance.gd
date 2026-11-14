@@ -7,11 +7,10 @@ class_name PrimordialBalance
 # Food motes per sector. Higher = denser soup = faster early growth.
 const MOTE_DENSITY: int = 7
 # Filler-mote nutrition and progress scale; together these make baseline evolution deliberate.
-# Tuned with a play bot: an efficient feeder evolves in ~6 min of play
-# (at 0.08 / 0.022 the bot won every biome in about a minute).
+# An efficient feeder evolves in about 6 minutes of play.
 const MOTE_NUTRITION: float = 0.035
 const MOTE_PROGRESS_SCALE: float = 0.025
-# Roster-food progress scale. Microbes still shape the genome, but no longer rush completion.
+# Roster-food progress scale. Microbes shape the genome without rushing completion.
 const FOOD_PROGRESS_SCALE: float = 0.007
 # Passive mutation-point grant cadence.
 const SURVIVAL_MP_INTERVAL: float = 14.0

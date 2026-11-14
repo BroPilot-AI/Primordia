@@ -91,8 +91,8 @@ const ShipPhys := preload("res://src/stages/space/ShipPhysics.gd")
 const StatStats := preload("res://src/stages/space/StationStats.gd")
 # Living galaxy: pure-logic for empire strength / attack resolution / evo ring.
 const GSim := preload("res://src/stages/space/GalaxySim.gd")
-# UI-BUYMENU-REDESIGN: tabbed build panel — Fleet / Build / Defenses / Upgrades / Save. Pure layout
-# (no game logic / no callbacks). _update_status still owns enable/disable + button text.
+# Tabbed build panel — Fleet / Build / Defenses / Upgrades / Save. Layout only;
+# _update_status owns enable/disable + button text.
 const BUILD_PANEL_SIZE := Vector2(330, 880)
 
 # Names given to empires that EMERGE mid-game from a world reaching spacefaring (the
@@ -2023,7 +2023,7 @@ func _tick_empires(delta: float) -> void:
 			continue
 		emp["collapsed"] = false
 		# Real per-empire economy: treasury accrues from THIS empire's own systems' income
-		# every frame (no longer a shared fake number), so a sprawling rich empire is
+		# every frame, so a sprawling rich empire is
 		# genuinely stronger and a starving one can be ground down.
 		emp["treasury"] = float(emp.get("treasury", 0.0)) + _empire_income(fac) * delta
 		emp["timer"] = float(emp.get("timer", interval)) - delta
@@ -2607,7 +2607,7 @@ func _build_structure(kind: String) -> void:
 		return
 	# The superweapon is unique across the WHOLE galaxy: check completed structures AND
 	# pending builds at every system, not just _annihilator / this parked system — queuing
-	# at a second system inside the first's build window used to buy two for one working unit.
+	# at a second system inside the first's build window would buy two for one working unit.
 	if kind == "Annihilator" and _annihilator_exists_anywhere():
 		Events.notify.emit("%s already exists." % _superweapon_name)
 		return
@@ -2951,11 +2951,10 @@ func _nearest_dist(from: Vector3, group: Array[StarSystem3D]) -> float:
 
 
 # --- Contained HUD (anchored, fixed-width, no-scroll — tabbed build panel) -------------------
-# UI-BUYMENU-REDESIGN: a tabbed build panel (Fleet / Build / Defenses / Upgrades / Save) holds all
-# the buttons that used to live in a single long ScrollContainer. Each tab is a 2-column
-# GridContainer so the longest tab (Fleet, 9 items) still fits inside the side panel at 1920×1080
-# with no scrollbar. _update_status still owns the enable/disable logic + button text + tooltip
-# text — this is a pure layout refactor (callbacks + logic untouched).
+# A tabbed build panel (Fleet / Build / Defenses / Upgrades / Save) holds all the buttons. Each
+# tab is a 2-column GridContainer so the longest tab (Fleet, 9 items) fits inside the side panel
+# at 1920×1080 with no scrollbar. _update_status owns the enable/disable logic, button text and
+# tooltips.
 func _build_ui() -> void:
 	# Same CompactHUD + StageChrome language as Creature/Tribe/Civ (left edge, collapsible).
 	var ui := StageChromeScript.make_layer(self)
@@ -3021,8 +3020,8 @@ func _build_ui() -> void:
 		defense_grid.add_child(dbtn)
 		_defense_btns.append(dbtn)
 	# Additive stations (refinery / sensor_array / etc.) live in the Defenses tab
-	# because they're all "park on your system" buildables gated by tier + cost + parked. Mirrors
-	# the old single-VBox structure; just rolled into a shared 2-col grid so it fits on one page.
+	# because they're all "park on your system" buildables gated by tier + cost + parked, in a
+	# shared 2-col grid so they fit on one page.
 	for kind in StatStats.STATIONS:
 		var sbtn := _make_build_button("Build %s (%s)" % [_station_label(kind), _format_cost(_station_cost(kind))],
 			"%s\nCost %s · Build time %.0fs · Min tier %d\n%s" % [
@@ -3225,7 +3224,7 @@ func _update_status() -> void:
 	if _status == null:
 		return
 	var annih := ("  ⚠ %s ONLINE" % _superweapon_name.to_upper()) if _annihilator != null else ""
-	# Resource chips across the top (AoE-style) — replaces the old Treasury/Credits/Systems text block.
+	# Resource chips across the top (AoE-style).
 	if _stat_strip != null:
 		_stat_strip.begin()
 		var inc := _galaxy_income()

@@ -31,10 +31,10 @@ const MUSIC_PITCH_FOR_STAGE: Dictionary[int, float] = {
 	3: 1.00,
 	4: 1.00,
 }
-# Key → file stem. SFX live under res://assets/audio/sfx/ as .wav (and the older four under
+# Key → file stem. SFX live under res://assets/audio/sfx/ as .wav (and four more under
 # res://assets/audio/ as .ogg). The resolver tries .ogg/.mp3/.wav so stems only matter.
 const SFX: Dictionary[String, String] = {
-	# Universal / legacy (still routed for the four original stems)
+	# Universal (the four .ogg stems under res://assets/audio/)
 	"blip": "sfx_blip", "chime": "sfx_chime", "win": "sfx_win", "lose": "sfx_lose",
 	# Primordial
 	"soup_eat": "sfx_soup_eat",
@@ -188,11 +188,6 @@ func _music_path_for_stage(stage: int) -> String:
 	if fallback != "":
 		return fallback
 	return _resolve("music_space" if stage >= 3 else "music_primordial")
-
-
-## True when the preferred stem for a stage exists on disk (used by tests + debug).
-func has_music_for_stage(stage: int) -> bool:
-	return _resolve(MUSIC_FOR_STAGE.get(stage, "")) != ""
 
 
 func _set_looping(stream: AudioStream) -> void:

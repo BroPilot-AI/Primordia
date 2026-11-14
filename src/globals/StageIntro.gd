@@ -45,8 +45,7 @@ const STAGE_CARDS := {
 }
 
 ## Pure helper: returns the final card dict for a stage (copy with `{biome}` substituted
-## against the live `EvolutionState.genome.biome_label()` when reachable). Public so the test
-## suite can assert copy without needing the autoload in the tree.
+## against the live `EvolutionState.genome.biome_label()` when reachable).
 static func card_for(stage_index: int) -> Dictionary:
 	if not STAGE_CARDS.has(stage_index):
 		return {}
@@ -123,14 +122,14 @@ func toggle() -> void:
 		_present(STAGE_CARDS[_current_stage])
 
 
-## True when the card is currently visible (used by tests + by external pause menus).
+## True when the card is currently visible.
 func is_open() -> bool:
 	return _is_open
 
 
 ## Manually close the card and resume the sim. Equivalent to clicking "Begin". Used by
-## the verify harness and any external UI that wants to dismiss the intro without
-## reproducing the click path. (Named to avoid colliding with CanvasLayer's native `hide`.)
+## any UI that wants to dismiss the intro without reproducing the click path (the pause
+## menu does). Named to avoid colliding with CanvasLayer's native `hide`.
 func close() -> void:
 	_dismiss()
 
@@ -152,7 +151,7 @@ func _present(card_data: Dictionary) -> void:
 		_card = null
 
 	# Snapshot current speed so we can restore on dismiss (GameSpeed keeps the true
-	# value, but we don't want to depend on the autoload being up for tests).
+	# value, but this also works without the autoload).
 	if Engine.time_scale > 0.0:
 		_last_speed = Engine.time_scale
 
@@ -248,7 +247,7 @@ func _build_card(data: Dictionary) -> Control:
 	inner.add_child(StageChrome.hint_label("Enter / Space / click outside to begin"))
 
 	# Click anywhere on the dim (outside the card panel) to also dismiss — matches
-	# the legacy StoryCard click-to-continue behavior so muscle memory carries over.
+	# the StoryCard click-to-continue behavior.
 	# (The root Control has mouse_filter = STOP and captures all clicks because the
 	# inner dim+center are set to IGNORE — that funnels mouse events here.)
 	root.gui_input.connect(func(event: InputEvent) -> void:

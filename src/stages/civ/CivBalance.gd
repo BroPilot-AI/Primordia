@@ -9,8 +9,6 @@ class_name CivBalance
 # The live economy (income, build times, costs, train costs, pop caps, ages,
 # veterancy) is NOT here — it lives directly in `CivStage3D.gd` as the
 # `BUILDINGS` / `UNITS` / `DEFENSES` dicts, `AGE_COST`, `WORKER_YIELD`, etc.
-# An older full economy sheet used to live in this file but was unwired, so it
-# was removed to avoid a misleading parallel source of truth.
 #
 # No engine calls, no state, fully static. `value(name, fallback)` returns the
 # caller's fallback on a miss; missing keys never raise.

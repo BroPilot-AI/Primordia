@@ -14,8 +14,8 @@ const TacticalBattleScene := preload("res://src/common/TacticalBattle.tscn")
 const EMPIRE_AI := preload("res://src/stages/space/EmpireAI.gd")
 const RIVAL_EXPAND_BASE := 32.0
 const RIVAL_EXPAND_PER_CITY := 16.0
-# UI-BUYMENU-REDESIGN: tabbed build panel — Workers / Buildings / Units / Defense / Upgrades.
-# Pure layout (no game logic / no callbacks). _update_status still owns enable/disable + text.
+# Tabbed build panel — Workers / Buildings / Units / Defense / Upgrades. Layout only;
+# _update_status owns enable/disable + text.
 const BUILD_PANEL_SIZE := Vector2(380, 0)
 ## Tactical ortho size — 96 is strategic and hides the starting settler in empty hex.
 const CAMERA_SIZE := 44.0
@@ -45,8 +45,8 @@ const CITY_MAX_HP := 500.0
 const SETTLER_COST := 12
 ## First city of a run gets a free production kick so early expansion isn't a dead wait.
 const FOUNDING_PROD_BONUS := 2
-# Player units now spawn as the rigged advanced species mesh (norm-scaled to ~1 unit tall), so they
-# need an explicit body height to match the old Kenney tile-fit size. See [[primordia-rts-animations]].
+# Player units spawn as the rigged advanced species mesh (norm-scaled to ~1 unit tall), so they
+# need an explicit body height to match the Kenney tile-fit size.
 const UNIT_BODY_HEIGHT := 2.5
 # Buildings normalize to a deliberate RTS readability ratio instead of inheriting source-model size.
 const BUILDING_TARGET_HEIGHT := 7.0
@@ -99,7 +99,7 @@ const BERRY_BUSHES_PER_PATCH := 5       # bushes per patch
 const BERRY_PATCH_RADIUS := 7.0         # world-units spread of a patch around its center
 const MIDFIELD_BERRY_BUSHES := 5
 const MIDFIELD_STONE_ROCKS := 3
-# Loose ambient scatter on open land (sparse — the belts carry the forest mass now).
+# Loose ambient scatter on open land (sparse — the belts carry the forest mass).
 const SCATTER_TREE_CHANCE := 0.01       # lone trees outside belts (open grassland flavor)
 const SCATTER_ROCK_CHANCE := 0.05
 const SCATTER_GROUNDCOVER_MIN := 1
@@ -117,7 +117,7 @@ const TECHS := [
 const AGES := ["Stone", "Bronze", "Iron", "Industrial", "Modern", "Near-Future"]
 # Civ is meant to be the longest stage. Each age also needs its tech (TECHS[age] before age + 1).
 # Sized against compounding city production (+1/city per age, production techs) and
-# ECONOMY_PACE: the bot's spaceflight win lands around 25-35 game-minutes.
+# ECONOMY_PACE: a spaceflight win lands around 25-35 game-minutes.
 const AGE_COST := [0, 180, 400, 750, 1300, 2000]
 const WORKER_YIELD := 0.42
 ## Pace of all player income (cities, workers, granary). At 1.0 a fresh capital paid for a
@@ -149,7 +149,7 @@ const UNITS := {
 	"PrismTank":    {cost = {wood = 5, stone = 5}, min_age = 5, max_hp = 40, damage = 12, attack_range = 21, attack_cooldown = 1.4, move_speed = 5},
 }
 
-# UNIT-TYPE-IDENTITY: every humanoid unit (player/rival/restored) renders from the SAME rigged
+# Every humanoid unit (player/rival/restored) renders from the SAME rigged
 # species mesh, so type readability comes from PROCEDURAL cues only — a per-type body scale, a few
 # emissive primitives forming a role prop (blade/bow/rifle/cannon/hover-orb), and an accent color.
 # `scale` multiplies the spawned node's uniform scale; `accent` is the prop's emission base (faction
@@ -192,7 +192,7 @@ const RIVAL_SPECIES := {
 }
 
 # Which attack animation a unit type plays on its strike beat. Soldier swings a sword, Archer looses
-# an arrow; everything else uses the rifle "Shoot" (the "attack" state). See [[primordia-rts-animations]].
+# an arrow; everything else uses the rifle "Shoot" (the "attack" state).
 const ATTACK_STATE := {
 	"Soldier": "melee", "Archer": "bowshoot", "Spearman": "melee", "Swordsman": "melee",
 }
@@ -277,9 +277,9 @@ const PLAYER_GUARD_RADIUS := 35.0
 ## Seconds per rival age-up; keeps rivals' unit tier roughly level with the (slow) player age ladder.
 const RIVAL_AGE_INTERVAL := 300.0
 const CIV_SIM_INTERVAL := 1.4
-## Lower = rivals retrain faster (was 1.75 — felt passive vs player economy).
+## Lower = rivals retrain faster.
 const RIVAL_TRAIN_INTERVAL_MULT := 1.35
-## Treasury per rival city per second. Raised (was 0.8) so rivals keep up with the slower player economy.
+## Treasury per rival city per second, high enough that rivals keep up with the player economy.
 const RIVAL_INCOME_PER_CITY := 1.5
 const BANDIT_SPAWN_MIN := 42.0
 const BANDIT_SPAWN_MAX := 85.0
@@ -443,7 +443,7 @@ func _emit_civ_open_brief() -> void:
 
 
 # Coherent terrain: one large landmass (cored, water only as rim + a few lakes) with
-# mountain ranges on the high ridges. Far less water than the old 40%-per-cell random.
+# mountain ranges on the high ridges.
 func terrain_at(x: int, y: int) -> int:
 	if _terr_noise == null:
 		_terr_noise = FastNoiseLite.new()
@@ -603,7 +603,7 @@ func _build_ground() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s_ground_dec" % EvolutionState.world_seed)
 	# The supplied Kenney hex kit gives land, coast, hills and mountains a readable
-	# game-board silhouette. Headless tests retain the lightweight procedural plane.
+	# game-board silhouette. Headless runs keep the lightweight procedural plane.
 	var use_hex_tiles := DisplayServer.get_name() != "headless"
 	if use_hex_tiles:
 		_build_hex_underlay()
@@ -641,11 +641,9 @@ func _build_ground() -> void:
 
 
 func _build_hex_terrain(rng: RandomNumberGenerator) -> void:
-	# PERF: 2,240 cells used to each instantiate an individual GLB scene (thousands of draw
-	# calls + a slow build hitch). Instead, group every cell by its tile GLB and pick a rotation
-	# now (same rng draws, same order, as the old per-cell loop), then batch each distinct tile
-	# type into MultiMeshInstance3D below. Visual result is identical; instance count drops from
-	# ~2,240 nodes to ~1 MultiMeshInstance3D per distinct tile GLB (submesh).
+	# PERF: group every cell by its tile GLB and pick its rotation now, then batch each distinct
+	# tile type into a MultiMeshInstance3D below: ~1 node per distinct tile GLB (submesh) instead
+	# of ~2,240 scenes and thousands of draw calls.
 	var by_path: Dictionary = {}
 	for y in ROWS:
 		for x in COLS:
@@ -729,7 +727,7 @@ func _unlifted(node: Node3D) -> Vector3:
 
 # Batch every cell using the same tile GLB into one MultiMeshInstance3D (one per submesh, if
 # the GLB has more than one MeshInstance3D). Reproduces _ground_tile's uniform fit-scale,
-# _hex_height_multiplier's Y compression, tint_model's flat per-tile color (now per-instance
+# _hex_height_multiplier's Y compression, tint_model's flat per-tile color (per-instance
 # via MultiMesh.use_colors), and the per-cell world position + Y rotation.
 func _build_tile_multimesh(path: String, records: Array) -> void:
 	var parts := _load_mesh_parts(path)
@@ -895,7 +893,7 @@ func _hex_tile_for(terrain: int, x: int, y: int, rng: RandomNumberGenerator) -> 
 func _bind_shader_texture(mat: ShaderMaterial, param: String, texture_path: String) -> bool:
 	# Ground textures are presentation-only. An unimported or unavailable texture
 	# must leave the shader on its procedural fallback rather than emit a resource
-	# loader error every time Civ builds its map (notably in headless tests).
+	# loader error every time Civ builds its map (notably in headless runs).
 	if not ResourceLoader.exists(texture_path, "Texture2D"):
 		push_warning("Missing civ shader texture: %s" % texture_path)
 		return false
@@ -919,8 +917,7 @@ func _build_grass_plane() -> void:
 	smat.set_shader_parameter("terrain_grid_origin", Vector2(_grid_offset.x, _grid_offset.z))
 	smat.set_shader_parameter("terrain_grid_size", Vector2(COLS * TILE_3D, ROWS * TILE_3D))
 	smat.set_shader_parameter("terrain_grid_tiles", Vector2(COLS, ROWS))
-	# Automated test and simulation runs use Godot's headless renderer, where
-	# these optional presentation textures are unnecessary. Keeping that path
+	# Headless runs skip these optional presentation textures; keeping that path
 	# procedural avoids resource-loader noise from incomplete local imports.
 	var albedo_ok := false
 	var normal_ok := false
@@ -1307,7 +1304,7 @@ func _create_settler_node(pos: Vector3) -> void:
 	ring_mat.albedo_color = Color(1, 1, 0.4)
 	ring_mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
 	ring.material_override = ring_mat
-	ring.position = Vector3(0, 0.05, 0)   # TorusMesh already lies flat; the old 90° tilt stood it up as an arch
+	ring.position = Vector3(0, 0.05, 0)   # TorusMesh already lies flat; tilting it 90° would stand it up as an arch
 	_settler.add_child(ring)
 
 
@@ -1712,7 +1709,7 @@ func _release_cell(cell: Vector2i) -> void:
 
 # Where a newly trained unit appears: an open hex touching the capital (the nearest open hexes
 # further out if that ring is blocked), taking the hexes in turn. The base height is returned;
-# `_set_on_ground` lifts the unit onto a hill. With no open hex it falls back to the old scatter.
+# `_set_on_ground` lifts the unit onto a hill. With no open hex it falls back to a random scatter.
 func _spawn_spot(capital: Vector3, scatter: float) -> Vector3:
 	var city_cell := _cell_at(capital)
 	var best := INF
@@ -2389,7 +2386,7 @@ func _check_endgame() -> void:
 
 ## Combat-kill routing: unit targets die via the death sequence; city targets are RAZED —
 ## torn out of the owning side's city list so they stop producing income, housing, and
-## win-condition count (the old 999hp throwaway wrappers left immortal "ghost cities").
+## win-condition count.
 func _kill_target(t: Dictionary) -> void:
 	if t.has("rival_owner"):
 		_raze_rival_city(t["rival_owner"], t)
@@ -2508,7 +2505,7 @@ func _find_enemy(from: Vector3, faction: int, aggro: float) -> Dictionary:
 		var d := from.distance_squared_to(u.node.position)
 		if d < best_d: best_d = d; best = u
 	# Player cities are real targets (the dict itself carries hp/max_hp) — a razed city is
-	# removed from _cities entirely (no 999hp ghosts that keep producing after burning).
+	# removed from _cities entirely, so it stops producing once burned.
 	for c in _cities:
 		if c.faction == faction: continue
 		if bool(c.get("dying", false)): continue
@@ -2700,8 +2697,7 @@ func _pathed_step(u: Dictionary, dest: Vector3, delta: float) -> void:
 
 
 # Move a unit node toward a target on the ground plane at `speed`, facing its direction of travel.
-# Returns true once it has arrived. This is the actual unit locomotion (the old move_to delegation
-# was a no-op — the glb unit models carry no script). Obstacle pathfinding layers on top of this.
+# Returns true once it has arrived. Obstacle pathfinding layers on top of this.
 func _step_toward(node: Node3D, target: Vector3, speed: float, delta: float) -> bool:
 	if not is_instance_valid(node) or speed <= 0.0:
 		return true
@@ -3759,11 +3755,10 @@ func _formation_offsets(count: int, spacing: float) -> Array[Vector3]:
 
 
 # --- HUD ---
-# UI-BUYMENU-REDESIGN: a tabbed build panel (Workers / Buildings / Units / Defense / Upgrades) holds
-# every buildable. The longest tab (Units, 7 items) fits 2 columns × 4 rows inside the side panel
-# at 1920×1080 with no scrollbar. _update_status still owns enable/disable + text — the layout is
-# a pure refactor (callbacks + button text + the `btn.text.begins_with("Train X")` lookup in
-# _update_status are preserved verbatim).
+# A tabbed build panel (Workers / Buildings / Units / Defense / Upgrades) holds every buildable.
+# The longest tab (Units, 7 items) fits 2 columns × 4 rows inside the side panel at 1920×1080
+# with no scrollbar. _update_status owns enable/disable + text and finds buttons by
+# `btn.text.begins_with("Train X")`, so keep that text format.
 
 func _build_ui() -> void:
 	# Shared StageChrome shell (right edge so the map stays open — same chrome as left stages).
@@ -4606,7 +4601,7 @@ func _restore_cities(value: Variant) -> void:
 
 
 # Stand the saved props back up verbatim: re-rolling them here would see a different set of
-# blocked hexes (turrets and later cities are not back yet). An old save has none and keeps the roll.
+# blocked hexes (turrets and later cities are not back yet). A save without them keeps the roll.
 func _restore_decor(city: Dictionary, saved: Variant) -> void:
 	if not (saved is Array):
 		return
@@ -4710,7 +4705,7 @@ func _spawn_species_unit(species: String, pos: Vector3, height_mult: float = 1.0
 	return node
 
 
-# UNIT-TYPE-IDENTITY: make unit TYPES distinct at a glance without recoloring the textured body.
+# Make unit TYPES distinct at a glance without recoloring the textured body.
 # Applies a per-type body-scale tweak and bolts on a small emissive role prop. Called from every
 # humanoid spawn path (player/rival/restore) right after the mesh + skin are set up. The species
 # skin (express) is untouched; we only add a child node and nudge the node's uniform scale.

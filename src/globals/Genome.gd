@@ -8,7 +8,7 @@ extends RefCounted
 ##   pre-Civ (creature) = a parts kit per branch; Civ+ = one of a few humanoid species.
 
 # --- Lineage branch: LOCKED at birth by the starting biome, through the come-on-land
-# convergence at Civ. Four distinct biomes, confirmed by the MD (2026-05-25). ---
+# convergence at Civ. Four distinct biomes. ---
 enum Branch { FRESHWATER, SALTWATER, DEEP_OCEAN, INLAND }
 const BRANCH_COUNT := 4
 
@@ -17,13 +17,13 @@ const BRANCH_COUNT := 4
 # the accessor methods below, so adding a NEW lineage — or a new per-stage field — is a ONE-PLACE
 # change here that threads through Primordial → Creature → Tribe → Civ → Space automatically.
 # To bolt on a new lineage: add a row (+ the matching art/sprites named to its keys) and it flows
-# everywhere. (MD 2026-05-30: full modularity — future dev work bolts straight on.)
+# everywhere.
 #
-# LOCKED 2026-05-25 (thematic): freshwater pool = baseline life → Human; deep dark ocean =
+# Themes: freshwater pool = baseline life → Human; deep dark ocean =
 # large-eyed depth-dwellers → Tall Violet; tidal shallow coast = scrappy amphibians → Tideling;
 # dry inland soil → Reptilian. Each lineage also gets its OWN Space-stage superweapon.
-# (2026-05-31: labels renamed to match the CC0 species models — ids unchanged. The freshwater
-# rival/predator "hydra" displays as "Kraken" to match its Squidle model.)
+# Labels match the CC0 species models (ids are separate). The freshwater rival/predator
+# "hydra" displays as "Kraken" to match its Squidle model.
 const LINEAGES := {
 	Branch.FRESHWATER: {
 		species = "human", species_label = "Human",
